@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.git/
+experiments/
+data/raw/
+data/processed/
+notebooks/
+*.egg-info/

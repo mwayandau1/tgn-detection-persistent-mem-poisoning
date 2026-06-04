@@ -1,0 +1,27 @@
+# Virtual environment
+.venv/
+venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Data (generated, not versioned)
+data/raw/
+data/processed/
+
+# Experiments (results, not versioned — pull from vast.ai)
+experiments/
+
+# Models
+models/*.gguf
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
