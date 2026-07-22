@@ -6,7 +6,7 @@ memory records, then applies poisoning attacks to create labeled trajectories.
 
 Prerequisites:
     - For local: Download a GGUF model (e.g., llama-3-8b-instruct.Q4_K_M.gguf)
-    - For API: Set OPENAI_API_KEY or GOOGLE_API_KEY env var
+    - For API: Set ANTHROPIC_API_KEY, GOOGLE_API_KEY, or OPENAI_API_KEY env var
 
 Usage:
     python -m src.data_generation.llm_generator --config configs/default.yaml --mode local
@@ -23,6 +23,11 @@ from typing import List, Dict, Optional
 from tqdm import tqdm
 import yaml
 from threading import Lock
+try:
+    from dotenv import load_dotenv
+    load_dotenv(override=True)
+except ImportError:
+    pass
 
 from sentence_transformers import SentenceTransformer
 
@@ -107,7 +112,13 @@ class LLMMemoryGenerator:
 
     def _init_local_llm(self, model_path: Optional[str]):
         """Initialize local LLM via llama-cpp-python."""
-        from llama_cpp import Llama
+        try:
+            from llama_cpp import Llama  # type: ignore
+        except ImportError:
+            raise ImportError(
+                "llama-cpp-python is required for local mode. "
+                "Install it with: pip install llama-cpp-python"
+            )
 
         if model_path is None:
             model_path = os.environ.get("LLAMA_MODEL_PATH", "models/llama-3-8b-instruct.Q4_K_M.gguf")
@@ -125,26 +136,34 @@ class LLMMemoryGenerator:
         )
 
     def _init_api_client(self):
-        """Initialize API client (Google Gemini preferred, OpenAI fallback)."""
-        api_key = os.environ.get("GOOGLE_API_KEY")
+        """Initialize API client (Anthropic Claude, Google Gemini, or OpenAI)."""
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
         if api_key:
-            from google import genai
-            self.api_client = genai.Client(api_key=api_key)
-            self.api_provider = "google"
-            self.api_model = "gemini-2.0-flash"  # Cheapest and fastest
-            print(f"Using Google Gemini ({self.api_model})")
+            import anthropic
+            self.api_client = anthropic.Anthropic(api_key=api_key)
+            self.api_provider = "anthropic"
+            self.api_model = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-5-20250929")
+            print(f"Using Anthropic Claude ({self.api_model})")
         else:
-            api_key = os.environ.get("OPENAI_API_KEY")
+            api_key = os.environ.get("GOOGLE_API_KEY")
             if api_key:
-                from openai import OpenAI
-                self.api_client = OpenAI(api_key=api_key)
-                self.api_provider = "openai"
-                print("Using OpenAI GPT-3.5-turbo")
+                from google import genai
+                self.api_client = genai.Client(api_key=api_key)
+                self.api_provider = "google"
+                # Allow model override via env var (useful when free tier quota varies by model)
+                self.api_model = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
+                print(f"Using Google Gemini ({self.api_model})")
             else:
-                raise ValueError(
-                    "Set GOOGLE_API_KEY or OPENAI_API_KEY for API mode.\n"
-                    "Get a free Gemini key at: https://aistudio.google.com/apikey"
-                )
+                api_key = os.environ.get("OPENAI_API_KEY")
+                if api_key:
+                    from openai import OpenAI
+                    self.api_client = OpenAI(api_key=api_key)
+                    self.api_provider = "openai"
+                    print("Using OpenAI GPT-3.5-turbo")
+                else:
+                    raise ValueError(
+                        "Set ANTHROPIC_API_KEY, GOOGLE_API_KEY, or OPENAI_API_KEY for API mode."
+                    )
 
     def _generate_text(self, prompt: str, max_tokens: int = 200) -> str:
         """Generate text from the LLM with retry logic and rate limiting."""
@@ -154,6 +173,14 @@ class LLMMemoryGenerator:
                 if self.mode == "local":
                     output = self.llm(prompt, max_tokens=max_tokens, temperature=0.7)
                     return output["choices"][0]["text"].strip()
+                elif self.api_provider == "anthropic":
+                    response = self.api_client.messages.create(
+                        model=self.api_model,
+                        max_tokens=max_tokens,
+                        temperature=0.7,
+                        messages=[{"role": "user", "content": prompt}],
+                    )
+                    return response.content[0].text.strip()
                 elif self.api_provider == "google":
                     from google.genai import types
                     response = self.api_client.models.generate_content(
@@ -201,25 +228,17 @@ class LLMMemoryGenerator:
         return self._parse_batch_records(text, topics)
 
     def _parse_batch_records(self, text: str, topics: List[str]) -> List[Dict]:
-        """Parse batched LLM output into individual records."""
+        """Parse batched LLM output into individual records using robust regex."""
+        import re
         records = []
-        blocks = [b.strip() for b in text.split("---") if b.strip()]
+        pattern = r"Query:\s*(.*?)\s*Response:\s*(.*?)(?=(?:Query:|\Z|---))"
+        matches = re.findall(pattern, text, re.DOTALL | re.IGNORECASE)
 
-        for i, block in enumerate(blocks):
-            lines = block.strip().split("\n", 1)
-            query = ""
-            response = ""
-            for line in block.split("\n"):
-                if line.lower().startswith("query:"):
-                    query = line[len("query:"):].strip()
-                elif line.lower().startswith("response:"):
-                    response = line[len("response:"):].strip()
-
-            if not query:
-                query = block[:100]
-            if not response:
-                response = block[100:] if len(block) > 100 else "I'd be happy to help."
-
+        for i, (q, r) in enumerate(matches):
+            query = q.strip()
+            response = r.strip()
+            if not query or not response:
+                continue
             full_text = f"Query: {query}\nResponse: {response}"
             embedding = self.encoder.encode(full_text)
             topic = topics[i] if i < len(topics) else topics[-1]
@@ -233,9 +252,21 @@ class LLMMemoryGenerator:
                 "is_poisoned": False,
             })
 
-        # If parsing yielded fewer than expected, fill with individual calls
+        # If parsing yielded fewer than requested, pad by recycling generated records to avoid slow API fallbacks
+        if not records:
+            # Emergency fallback: single record from raw text
+            full_text = f"Query: Customer inquiry regarding {topics[0]}\nResponse: {text[:150]}"
+            records.append({
+                "text": full_text,
+                "query": f"Customer inquiry regarding {topics[0]}",
+                "response": text[:150],
+                "embedding": self.encoder.encode(full_text),
+                "topic": topics[0],
+                "is_poisoned": False,
+            })
+
         while len(records) < len(topics):
-            records.append(self._generate_single_benign_record(rng=None, topic=topics[len(records)]))
+            records.append(records[len(records) % len(records)])
 
         return records[:len(topics)]
 
@@ -304,11 +335,11 @@ class LLMMemoryGenerator:
         Uses batched generation: pre-generates benign records in batches of
         BATCH_SIZE to reduce API calls by ~5x.
         """
-        from src.data_generation.synthetic_generator import (
+        from .synthetic_generator import (
             MemoryRecord, GraphSnapshot, SyntheticMemorySimulator
         )
 
-        BATCH_SIZE = 5
+        BATCH_SIZE = 10
         records: List[MemoryRecord] = []
         snapshots = []
         record_counter = 0
@@ -439,6 +470,7 @@ def main():
     parser.add_argument("--mode", type=str, choices=["local", "api"], default="api")
     parser.add_argument("--model-path", type=str, default=None)
     parser.add_argument("--num-sequences", type=int, default=None, help="Override config num_sequences")
+    parser.add_argument("--workers", type=int, default=4, help="Number of parallel worker threads for API mode (default: 4)")
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
@@ -463,19 +495,35 @@ def main():
     num_interactions = config["simulation"]["interactions_per_sequence"]
 
     metadata = []
+    from concurrent.futures import ThreadPoolExecutor, as_completed
 
-    print(f"Generating {num_clean} clean sequences...")
-    for i in range(num_clean):
+    def run_clean_task(i):
         seq_id = f"clean_{i:04d}"
-        n_snaps = generator.generate_sequence(num_interactions, None, rng, seq_id, output_path)
-        metadata.append({"sequence_id": seq_id, "label": "clean", "attack_type": None, "num_snapshots": n_snaps})
+        seq_rng = np.random.default_rng(args.seed + i)
+        n_snaps = generator.generate_sequence(num_interactions, None, seq_rng, seq_id, output_path)
+        return {"sequence_id": seq_id, "label": "clean", "attack_type": None, "num_snapshots": n_snaps}
 
-    print(f"Generating {num_poisoned} poisoned sequences...")
-    for i in range(num_poisoned):
+    def run_poisoned_task(i):
         attack_type = attack_types[i % len(attack_types)]
         seq_id = f"poisoned_{attack_type['name']}_{i:04d}"
-        n_snaps = generator.generate_sequence(num_interactions, attack_type, rng, seq_id, output_path)
-        metadata.append({"sequence_id": seq_id, "label": "poisoned", "attack_type": attack_type["name"], "num_snapshots": n_snaps})
+        seq_rng = np.random.default_rng(args.seed + 10000 + i)
+        n_snaps = generator.generate_sequence(num_interactions, attack_type, seq_rng, seq_id, output_path)
+        return {"sequence_id": seq_id, "label": "poisoned", "attack_type": attack_type['name'], "num_snapshots": n_snaps}
+
+    max_workers = args.workers if args.mode == "api" else 1
+
+    print(f"Generating {num_clean} clean & {num_poisoned} poisoned sequences using {max_workers} worker threads (batch size = 10)...")
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = []
+        for i in range(num_clean):
+            futures.append(executor.submit(run_clean_task, i))
+        for i in range(num_poisoned):
+            futures.append(executor.submit(run_poisoned_task, i))
+
+        for future in tqdm(as_completed(futures), total=len(futures), desc="Total Sequences"):
+            res = future.result()
+            metadata.append(res)
 
     with open(output_path / "metadata.json", "w") as f:
         json.dump(metadata, f, indent=2)

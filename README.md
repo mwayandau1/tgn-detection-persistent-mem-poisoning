@@ -55,6 +55,11 @@ python -m src.models.evaluate --config configs/default.yaml --checkpoint experim
 Requires either a local GGUF model or an API key:
 
 ```bash
+# With Anthropic Claude API
+set ANTHROPIC_API_KEY=<your-key>
+# Optionally set model: set CLAUDE_MODEL=claude-3-5-sonnet-20241022
+python -m src.data_generation.llm_generator --config configs/default.yaml --mode api --num-sequences 50
+
 # With OpenAI API
 set OPENAI_API_KEY=<your-key>
 python -m src.data_generation.llm_generator --config configs/default.yaml --mode api --num-sequences 50
