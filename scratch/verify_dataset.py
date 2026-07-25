@@ -1,8 +1,13 @@
 import json
+import sys
 import numpy as np
 import torch
+import argparse
 from pathlib import Path
 from src.data_generation.dataset import MemoryTrajectoryDataset, collate_trajectories
+
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
 
 def verify_dataset(data_dir: str):
     data_path = Path(data_dir)
@@ -14,7 +19,7 @@ def verify_dataset(data_dir: str):
     meta_file = data_path / "metadata.json"
     splits_file = data_path / "splits.json"
     if not meta_file.exists() or not splits_file.exists():
-        print("❌ ERROR: Missing metadata.json or splits.json!")
+        print("[ERROR] Missing metadata.json or splits.json!")
         return
 
     with open(meta_file) as f:
@@ -83,4 +88,8 @@ def verify_dataset(data_dir: str):
     print("=" * 60)
 
 if __name__ == "__main__":
-    verify_dataset("data/raw/llm_generated_test")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--data-dir", type=str, default="data/raw/llm_generated")
+    args = parser.parse_args()
+    verify_dataset(args.data_dir)
+

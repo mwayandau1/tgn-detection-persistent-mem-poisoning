@@ -52,6 +52,7 @@ class Evaluator:
     @torch.no_grad()
     def evaluate_graph_level(self) -> dict:
         """Evaluate graph-level detection metrics."""
+        self.model.reset_memory()
         all_scores = []
         all_labels = []
 
@@ -63,6 +64,9 @@ class Evaluator:
 
             all_scores.extend(graph_scores.cpu().numpy())
             all_labels.extend(graph_labels.numpy())
+
+            if self.device.type == "cuda":
+                torch.cuda.empty_cache()
 
         scores = np.array(all_scores)
         labels = np.array(all_labels)
@@ -99,6 +103,7 @@ class Evaluator:
     @torch.no_grad()
     def evaluate_node_level(self) -> dict:
         """Evaluate node-level detection (average precision)."""
+        self.model.reset_memory()
         all_node_scores = []
         all_node_labels = []
 
@@ -114,6 +119,9 @@ class Evaluator:
                 min_len = min(len(ns), len(node_labels))
                 all_node_scores.extend(ns[:min_len])
                 all_node_labels.extend(node_labels[:min_len])
+
+            if self.device.type == "cuda":
+                torch.cuda.empty_cache()
 
         scores = np.array(all_node_scores)
         labels = np.array(all_node_labels)

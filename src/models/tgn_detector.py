@@ -13,7 +13,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.nn import GATConv, global_mean_pool
-from torch_geometric.data import Data, Batch
+from torch_geometric.data import Batch
 from typing import List, Tuple, Optional, Dict
 
 
@@ -148,7 +148,6 @@ class TGNDetector(nn.Module):
         model_cfg = config["model"]
 
         # 3 meta features: recency, retrieval_freq, retrieval_recency
-        # (provenance flag removed — it leaked the label)
         input_dim = model_cfg["node_feature_dim"] + 3
         memory_dim = model_cfg["node_memory_dim"]
         gat_hidden = model_cfg["gat_hidden_dim"]

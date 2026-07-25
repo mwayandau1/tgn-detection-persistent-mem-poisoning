@@ -499,6 +499,9 @@ def main():
 
     def run_clean_task(i):
         seq_id = f"clean_{i:04d}"
+        seq_dir = output_path / seq_id
+        if seq_dir.exists() and len(list(seq_dir.glob("snapshot_*.npz"))) == 20:
+            return {"sequence_id": seq_id, "label": "clean", "attack_type": None, "num_snapshots": 20}
         seq_rng = np.random.default_rng(args.seed + i)
         n_snaps = generator.generate_sequence(num_interactions, None, seq_rng, seq_id, output_path)
         return {"sequence_id": seq_id, "label": "clean", "attack_type": None, "num_snapshots": n_snaps}
@@ -506,6 +509,9 @@ def main():
     def run_poisoned_task(i):
         attack_type = attack_types[i % len(attack_types)]
         seq_id = f"poisoned_{attack_type['name']}_{i:04d}"
+        seq_dir = output_path / seq_id
+        if seq_dir.exists() and len(list(seq_dir.glob("snapshot_*.npz"))) == 20:
+            return {"sequence_id": seq_id, "label": "poisoned", "attack_type": attack_type['name'], "num_snapshots": 20}
         seq_rng = np.random.default_rng(args.seed + 10000 + i)
         n_snaps = generator.generate_sequence(num_interactions, attack_type, seq_rng, seq_id, output_path)
         return {"sequence_id": seq_id, "label": "poisoned", "attack_type": attack_type['name'], "num_snapshots": n_snaps}

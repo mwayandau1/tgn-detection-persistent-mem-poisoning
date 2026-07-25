@@ -202,6 +202,8 @@ class Trainer:
 
                 total_loss += loss.item()
                 num_batches += 1
+                if self.device.type == "cuda":
+                    torch.cuda.empty_cache()
 
             phase1_scheduler.step()
             avg_loss = total_loss / max(num_batches, 1)
@@ -270,6 +272,7 @@ class Trainer:
 
     def _train_epoch(self, alpha: float, beta: float) -> float:
         """Run one training epoch."""
+        self.model.reset_memory()
         total_loss = 0
         num_batches = 0
 
@@ -316,6 +319,7 @@ class Trainer:
         from sklearn.metrics import roc_auc_score
 
         self.model.eval()
+        self.model.reset_memory()
         total_loss = 0
         num_batches = 0
         all_graph_scores = []
@@ -349,6 +353,9 @@ class Trainer:
 
             all_graph_scores.extend(graph_scores.cpu().numpy())
             all_graph_labels.extend(graph_labels.cpu().numpy())
+
+            if self.device.type == "cuda":
+                torch.cuda.empty_cache()
 
         avg_loss = total_loss / max(num_batches, 1)
 

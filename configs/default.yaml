@@ -51,7 +51,7 @@ model:
 # === Training ===
 training:
   temporal_window: 10           # T: number of past snapshots
-  batch_size: 16
+  batch_size: 4                 # Optimized for 4GB VRAM GPU (Quadro P2000)
   learning_rate: 0.0001
   weight_decay: 0.00001
   epochs_contrastive: 10        # Phase 1

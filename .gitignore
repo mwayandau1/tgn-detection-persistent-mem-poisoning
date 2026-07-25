@@ -26,3 +26,4 @@ models/*.gguf
 .DS_Store
 Thumbs.db
 .env
+.venv312/
