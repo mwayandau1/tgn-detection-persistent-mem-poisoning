@@ -35,7 +35,7 @@ pip install --no-cache-dir pyg-lib torch-scatter torch-sparse torch-cluster torc
     echo "  Warning: Pre-built PyG wheels not found for this torch/cuda combo. Using CPU fallback."
 
 # 3. Create directories
-mkdir -p data/raw/synthetic data/raw/llm_generated experiments
+mkdir -p data/raw/llm_generated experiments
 
 # 4. Verify installation
 echo ""

@@ -15,7 +15,7 @@ set -e
 
 # --- Configuration ---
 CONFIG="${CONFIG:-configs/default.yaml}"
-DATA_DIR="${DATA_DIR:-data/raw/synthetic}"
+DATA_DIR="${DATA_DIR:-data/raw/llm_generated}"
 RUN_NAME="${RUN_NAME:-run_$(date +%Y%m%d_%H%M%S)}"
 OUTPUT_DIR="experiments/${RUN_NAME}"
 SEED="${SEED:-42}"
@@ -44,12 +44,12 @@ echo ""
 # --- Functions ---
 
 generate_data() {
-    echo "=== Step 1: Generating Dataset ==="
+    echo "=== Step 1: Generating LLM Dataset ==="
     START_TIME=$SECONDS
-    python -m src.data_generation.synthetic_generator \
+    python -m src.data_generation.llm_generator \
         --config "$CONFIG" \
         --output "$DATA_DIR" \
-        --seed "$SEED"
+        --num-sequences 167
     echo "  Done in $((SECONDS - START_TIME))s"
     echo ""
 

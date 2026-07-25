@@ -93,9 +93,8 @@ class RateLimiter:
 class LLMMemoryGenerator:
     """Generates realistic memory records using an LLM."""
 
-    def __init__(self, config: dict, mode: str = "local", model_path: Optional[str] = None):
+    def __init__(self, config: dict):
         self.config = config
-        self.mode = mode
         self.sim_cfg = config["simulation"]
         self.domain = self.sim_cfg["domain"]
         self.rate_limiter = RateLimiter(calls_per_second=config.get("api_rate_limit", 5.0))
@@ -104,36 +103,8 @@ class LLMMemoryGenerator:
         print("Loading sentence encoder...")
         self.encoder = SentenceTransformer("all-MiniLM-L6-v2")
 
-        # Initialize LLM
-        if mode == "local":
-            self._init_local_llm(model_path)
-        elif mode == "api":
-            self._init_api_client()
-
-    def _init_local_llm(self, model_path: Optional[str]):
-        """Initialize local LLM via llama-cpp-python."""
-        try:
-            from llama_cpp import Llama  # type: ignore
-        except ImportError:
-            raise ImportError(
-                "llama-cpp-python is required for local mode. "
-                "Install it with: pip install llama-cpp-python"
-            )
-
-        if model_path is None:
-            model_path = os.environ.get("LLAMA_MODEL_PATH", "models/llama-3-8b-instruct.Q4_K_M.gguf")
-
-        if not Path(model_path).exists():
-            raise FileNotFoundError(
-                f"Model not found at {model_path}. Download a GGUF model and set LLAMA_MODEL_PATH."
-            )
-
-        self.llm = Llama(
-            model_path=model_path,
-            n_ctx=2048,
-            n_gpu_layers=-1,  # Use all GPU layers
-            verbose=False,
-        )
+        # Initialize LLM API client
+        self._init_api_client()
 
     def _init_api_client(self):
         """Initialize API client (Anthropic Claude, Google Gemini, or OpenAI)."""
@@ -170,10 +141,7 @@ class LLMMemoryGenerator:
         self.rate_limiter.wait()
         for attempt in range(3):
             try:
-                if self.mode == "local":
-                    output = self.llm(prompt, max_tokens=max_tokens, temperature=0.7)
-                    return output["choices"][0]["text"].strip()
-                elif self.api_provider == "anthropic":
+                if self.api_provider == "anthropic":
                     response = self.api_client.messages.create(
                         model=self.api_model,
                         max_tokens=max_tokens,
@@ -335,9 +303,7 @@ class LLMMemoryGenerator:
         Uses batched generation: pre-generates benign records in batches of
         BATCH_SIZE to reduce API calls by ~5x.
         """
-        from .synthetic_generator import (
-            MemoryRecord, GraphSnapshot, SyntheticMemorySimulator
-        )
+        from .types import MemoryRecord, GraphSnapshot
 
         BATCH_SIZE = 10
         records: List[MemoryRecord] = []
@@ -467,8 +433,6 @@ def main():
     parser = argparse.ArgumentParser(description="Generate LLM-powered memory poisoning dataset")
     parser.add_argument("--config", type=str, default="configs/default.yaml")
     parser.add_argument("--output", type=str, default="data/raw/llm_generated")
-    parser.add_argument("--mode", type=str, choices=["local", "api"], default="api")
-    parser.add_argument("--model-path", type=str, default=None)
     parser.add_argument("--num-sequences", type=int, default=None, help="Override config num_sequences")
     parser.add_argument("--workers", type=int, default=4, help="Number of parallel worker threads for API mode (default: 4)")
     parser.add_argument("--seed", type=int, default=42)
@@ -480,7 +444,7 @@ def main():
     if args.num_sequences:
         config["simulation"]["num_sequences"] = args.num_sequences
 
-    generator = LLMMemoryGenerator(config, mode=args.mode, model_path=args.model_path)
+    generator = LLMMemoryGenerator(config)
     rng = np.random.default_rng(args.seed)
 
     output_path = Path(args.output)
@@ -516,7 +480,7 @@ def main():
         n_snaps = generator.generate_sequence(num_interactions, attack_type, seq_rng, seq_id, output_path)
         return {"sequence_id": seq_id, "label": "poisoned", "attack_type": attack_type['name'], "num_snapshots": n_snaps}
 
-    max_workers = args.workers if args.mode == "api" else 1
+    max_workers = args.workers
 
     print(f"Generating {num_clean} clean & {num_poisoned} poisoned sequences using {max_workers} worker threads (batch size = 10)...")
 

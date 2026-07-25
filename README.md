@@ -21,38 +21,30 @@ pip install torch-geometric
 # pip install torch-geometric --extra-index-url https://data.pyg.org/whl/torch-2.1.0+cu118.html
 ```
 
-### 2. Generate Synthetic Dataset (Stage A — No LLM Required)
+### 2. Generate LLM Dataset
 
-This generates labeled memory graph trajectories using synthetic embeddings. Fast, runs on CPU, good for validating the architecture.
+Generates realistic memory graph trajectories using LLM interaction sequences:
 
 ```bash
-python -m src.data_generation.synthetic_generator --config configs/default.yaml --output data/raw/synthetic
+# Using Anthropic Claude / Google Gemini API key set in .env
+python -m src.data_generation.llm_generator --config configs/default.yaml --mode api --num-sequences 167 --output data/raw/llm_generated
 ```
-
-This produces:
-- 300 interaction sequences (180 clean, 120 poisoned across 3 attack types)
-- Each sequence = 20 graph snapshots (200 interactions / 10 snapshot interval)
-- Saved as `.npz` files with node features, edges, and labels
 
 ### 3. Train the Detector
 
 ```bash
 # Full training (Phase 1 contrastive + Phase 2 supervised)
-python -m src.models.train --config configs/default.yaml --data data/raw/synthetic --output experiments/run_001
+python -m src.models.train --config configs/default.yaml --data data/raw/llm_generated --output experiments/run_001
 
 # Skip contrastive pre-training (faster, slightly worse)
-python -m src.models.train --config configs/default.yaml --data data/raw/synthetic --output experiments/run_001 --skip-phase1
+python -m src.models.train --config configs/default.yaml --data data/raw/llm_generated --output experiments/run_001 --skip-phase1
 ```
 
 ### 4. Evaluate
 
 ```bash
-python -m src.models.evaluate --config configs/default.yaml --checkpoint experiments/run_001/phase2_best.pt --data data/raw/synthetic --output experiments/run_001/eval_results.json
+python -m src.models.evaluate --config configs/default.yaml --checkpoint experiments/run_001/phase2_best.pt --data data/raw/llm_generated --output experiments/run_001/eval_results.json
 ```
-
-### 5. (Optional) Generate Realistic Dataset with LLM (Stage B)
-
-Requires either a local GGUF model or an API key:
 
 ```bash
 # With Anthropic Claude API
@@ -77,8 +69,8 @@ AI-poisoned/
 │   └── default.yaml              # All hyperparameters and settings
 ├── src/
 │   ├── data_generation/
-│   │   ├── synthetic_generator.py  # Stage A: synthetic dataset (no LLM)
-│   │   ├── llm_generator.py       # Stage B: LLM-powered realistic dataset
+│   │   ├── types.py               # Data types (MemoryRecord, GraphSnapshot)
+│   │   ├── llm_generator.py       # LLM-powered realistic dataset generator
 │   │   └── dataset.py             # PyTorch dataset loader
 │   ├── models/
 │   │   ├── tgn_detector.py        # TGN model architecture
@@ -98,7 +90,7 @@ AI-poisoned/
 Each sequence is a directory containing graph snapshots as `.npz` files:
 
 ```
-data/raw/synthetic/
+data/raw/llm_generated/
 ├── clean_0000/
 │   ├── snapshot_0000.npz
 │   ├── snapshot_0001.npz
@@ -118,7 +110,7 @@ Each `.npz` contains:
 
 ## Key Design Decisions
 
-1. **Start with synthetic data** — validates architecture without expensive LLM calls
+1. **LLM Sequence Simulation** — realistic interaction sequences with embedding-based memory representation
 2. **Snapshot-based** — batch processing of graph states (not streaming, per proposal scope)
 3. **Multi-task loss** — graph-level + node-level detection trained jointly
 4. **Focal loss** — handles extreme class imbalance at node level (few poisoned records vs many benign)

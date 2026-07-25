@@ -4,8 +4,8 @@ Visualize Memory Graph Datasets
 Generates visual comparisons of clean vs poisoned memory graphs.
 
 Usage:
-    python -m src.utils.visualize --data data/raw/synthetic
-    python -m src.utils.visualize --data data/raw/synthetic --sequence poisoned_minja_query_only_0000
+    python -m src.utils.visualize --data data/raw/llm_generated
+    python -m src.utils.visualize --data data/raw/llm_generated --sequence poisoned_minja_query_only_0000
 """
 
 import argparse
@@ -251,7 +251,7 @@ def visualize_stats(data_dir, output_path=None):
 
 def main():
     parser = argparse.ArgumentParser(description="Visualize memory graph dataset")
-    parser.add_argument("--data", type=str, default="data/raw/synthetic")
+    parser.add_argument("--data", type=str, default="data/raw/llm_generated")
     parser.add_argument("--sequence", type=str, default=None, help="Specific sequence ID to visualize")
     parser.add_argument("--mode", type=str, choices=["compare", "sequence", "stats", "all"], default="all")
     parser.add_argument("--save", type=str, default=None, help="Directory to save plots (shows interactively if not set)")

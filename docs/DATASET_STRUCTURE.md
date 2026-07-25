@@ -42,7 +42,7 @@ With `num_sequences: 300` and `attack_ratio: 0.4`:
 - 120 poisoned sequences (40 each of 3 attack types)
 
 ```
-data/raw/synthetic/
+data/raw/llm_generated/
 ├── clean_0000/                    # Clean sequence #0
 ├── clean_0001/                    # Clean sequence #1
 ├── ...
@@ -215,8 +215,8 @@ Your model has **650K parameters**. The rule of thumb is you need roughly 5-50x 
 
 | File | What it does |
 |------|-------------|
-| `src/data_generation/synthetic_generator.py` | Stage A: creates synthetic embeddings + graph snapshots |
-| `src/data_generation/llm_generator.py` | Stage B: uses real LLM to generate text, encodes with MiniLM |
+| `src/data_generation/types.py` | Defines MemoryRecord and GraphSnapshot data structures |
+| `src/data_generation/llm_generator.py` | Uses LLM to generate realistic interaction text, encodes with MiniLM |
 | `src/data_generation/dataset.py` | Loads `.npz` snapshots into PyG Data objects for training |
 | `configs/default.yaml` | 300 sequences, 200 interactions — for local testing |
 | `configs/large.yaml` | 1000 sequences, 300 interactions — for vast.ai training |

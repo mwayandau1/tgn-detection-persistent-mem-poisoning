@@ -24,4 +24,4 @@ RUN pip install --no-cache-dir torch-geometric \
 COPY . .
 
 # Default: run training
-CMD ["python", "-m", "src.models.train", "--config", "configs/default.yaml", "--data", "data/raw/synthetic", "--output", "experiments/run_vastai"]
+CMD ["python", "-m", "src.models.train", "--config", "configs/default.yaml", "--data", "data/raw/llm_generated", "--output", "experiments/run_vastai"]

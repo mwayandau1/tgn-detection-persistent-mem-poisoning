@@ -3,7 +3,7 @@ Evaluation script for the TGN Memory Poisoning Detector.
 Computes all metrics defined in the thesis proposal.
 
 Usage:
-    python -m src.models.evaluate --config configs/default.yaml --checkpoint experiments/run_001/phase2_best.pt --data data/raw/synthetic
+    python -m src.models.evaluate --config configs/default.yaml --checkpoint experiments/run_001/phase2_best.pt --data data/raw/llm_generated
 """
 
 import argparse
@@ -222,7 +222,7 @@ def main():
     parser = argparse.ArgumentParser(description="Evaluate TGN Detector")
     parser.add_argument("--config", type=str, default="configs/default.yaml")
     parser.add_argument("--checkpoint", type=str, required=True)
-    parser.add_argument("--data", type=str, default="data/raw/synthetic")
+    parser.add_argument("--data", type=str, default="data/raw/llm_generated")
     parser.add_argument("--output", type=str, default="experiments/run_001/eval_results.json")
     parser.add_argument("--device", type=str, default="auto")
     args = parser.parse_args()

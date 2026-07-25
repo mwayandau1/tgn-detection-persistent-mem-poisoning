@@ -3,7 +3,7 @@ Training script for the TGN Memory Poisoning Detector.
 Implements Phase 1 (contrastive pre-training) and Phase 2 (supervised fine-tuning).
 
 Usage:
-    python -m src.models.train --config configs/default.yaml --data data/raw/synthetic
+    python -m src.models.train --config configs/default.yaml --data data/raw/llm_generated
 """
 
 import argparse
@@ -381,7 +381,7 @@ class Trainer:
 def main():
     parser = argparse.ArgumentParser(description="Train TGN Memory Poisoning Detector")
     parser.add_argument("--config", type=str, default="configs/default.yaml")
-    parser.add_argument("--data", type=str, default="data/raw/synthetic")
+    parser.add_argument("--data", type=str, default="data/raw/llm_generated")
     parser.add_argument("--output", type=str, default="experiments/run_001")
     parser.add_argument("--skip-phase1", action="store_true", help="Skip contrastive pre-training")
     parser.add_argument("--device", type=str, default="auto")
