@@ -107,41 +107,65 @@ class LLMMemoryGenerator:
         self._init_api_client()
 
     def _init_api_client(self):
-        """Initialize API client (Anthropic Claude, Google Gemini, or OpenAI)."""
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        """Initialize API client (OpenRouter, Anthropic Claude, Google Gemini, or OpenAI)."""
+        api_key = os.environ.get("OPENROUTER_API_KEY")
         if api_key:
-            import anthropic
-            self.api_client = anthropic.Anthropic(api_key=api_key)
-            self.api_provider = "anthropic"
-            self.api_model = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-5-20250929")
-            print(f"Using Anthropic Claude ({self.api_model})")
+            from openai import OpenAI
+            self.api_provider = "openrouter"
+            self.api_model = os.environ.get("OPENROUTER_MODEL", "google/gemini-2.0-flash-exp:free")
+            headers = {
+                "HTTP-Referer": "https://github.com/mwayandau1/tgn-detection-persistent-mem-poisoning",
+                "X-Title": "TGN Memory Poisoning Dataset Generator",
+            }
+            self.api_client = OpenAI(
+                base_url="https://openrouter.ai/api/v1",
+                api_key=api_key,
+                default_headers=headers,
+            )
+            print(f"Using OpenRouter API ({self.api_model})")
         else:
-            api_key = os.environ.get("GOOGLE_API_KEY")
+            api_key = os.environ.get("ANTHROPIC_API_KEY")
             if api_key:
-                from google import genai
-                self.api_client = genai.Client(api_key=api_key)
-                self.api_provider = "google"
-                # Allow model override via env var (useful when free tier quota varies by model)
-                self.api_model = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
-                print(f"Using Google Gemini ({self.api_model})")
+                import anthropic
+                self.api_client = anthropic.Anthropic(api_key=api_key)
+                self.api_provider = "anthropic"
+                self.api_model = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-5-20250929")
+                print(f"Using Anthropic Claude ({self.api_model})")
             else:
-                api_key = os.environ.get("OPENAI_API_KEY")
+                api_key = os.environ.get("GOOGLE_API_KEY")
                 if api_key:
-                    from openai import OpenAI
-                    self.api_client = OpenAI(api_key=api_key)
-                    self.api_provider = "openai"
-                    print("Using OpenAI GPT-3.5-turbo")
+                    from google import genai
+                    self.api_client = genai.Client(api_key=api_key)
+                    self.api_provider = "google"
+                    # Allow model override via env var (useful when free tier quota varies by model)
+                    self.api_model = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
+                    print(f"Using Google Gemini ({self.api_model})")
                 else:
-                    raise ValueError(
-                        "Set ANTHROPIC_API_KEY, GOOGLE_API_KEY, or OPENAI_API_KEY for API mode."
-                    )
+                    api_key = os.environ.get("OPENAI_API_KEY")
+                    if api_key:
+                        from openai import OpenAI
+                        self.api_client = OpenAI(api_key=api_key)
+                        self.api_provider = "openai"
+                        print("Using OpenAI GPT-3.5-turbo")
+                    else:
+                        raise ValueError(
+                            "Set OPENROUTER_API_KEY, ANTHROPIC_API_KEY, GOOGLE_API_KEY, or OPENAI_API_KEY for API mode."
+                        )
 
     def _generate_text(self, prompt: str, max_tokens: int = 200) -> str:
         """Generate text from the LLM with retry logic and rate limiting."""
         self.rate_limiter.wait()
-        for attempt in range(3):
+        for attempt in range(5):
             try:
-                if self.api_provider == "anthropic":
+                if self.api_provider == "openrouter":
+                    response = self.api_client.chat.completions.create(
+                        model=self.api_model,
+                        messages=[{"role": "user", "content": prompt}],
+                        max_tokens=max_tokens,
+                        temperature=0.7,
+                    )
+                    return response.choices[0].message.content.strip()
+                elif self.api_provider == "anthropic":
                     response = self.api_client.messages.create(
                         model=self.api_model,
                         max_tokens=max_tokens,
@@ -169,12 +193,14 @@ class LLMMemoryGenerator:
                     )
                     return response.choices[0].message.content.strip()
             except Exception as e:
-                if attempt < 2:
-                    wait = 2 ** (attempt + 1)  # Exponential backoff: 2s, 4s
+                if attempt < 4:
+                    wait = 2 ** (attempt + 1)  # Exponential backoff: 2s, 4s, 8s, 16s
+                    if "429" in str(e) or "rate" in str(e).lower():
+                        wait = max(wait, 5.0)
                     print(f"    API error: {e}. Retrying in {wait}s...")
                     time.sleep(wait)
                 else:
-                    print(f"    API failed after 3 attempts: {e}")
+                    print(f"    API failed after 5 attempts: {e}")
                     return "[generation failed]"
         return "[generation failed]"
 
@@ -436,7 +462,14 @@ def main():
     parser.add_argument("--num-sequences", type=int, default=None, help="Override config num_sequences")
     parser.add_argument("--workers", type=int, default=4, help="Number of parallel worker threads for API mode (default: 4)")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--api-key", type=str, default=None, help="OpenRouter or API key (sets OPENROUTER_API_KEY)")
+    parser.add_argument("--model", type=str, default=None, help="OpenRouter model (e.g. google/gemini-2.0-flash-exp:free)")
     args = parser.parse_args()
+
+    if args.api_key:
+        os.environ["OPENROUTER_API_KEY"] = args.api_key
+    if args.model:
+        os.environ["OPENROUTER_MODEL"] = args.model
 
     with open(args.config) as f:
         config = yaml.safe_load(f)
