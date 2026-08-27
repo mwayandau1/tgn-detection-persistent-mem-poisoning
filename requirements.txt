@@ -28,6 +28,10 @@ python-dotenv>=1.0.0
 
 # Visualization
 matplotlib>=3.7.0
+seaborn>=0.13.0
+pandas>=2.0.0
 
 # Notebooks
 jupyterlab>=4.0.0
+ipywidgets>=8.0.0
+

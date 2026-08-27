@@ -24,20 +24,24 @@ class MemoryTrajectoryDataset(Dataset):
     """
 
     def __init__(self, data_dir: str, split: str = "train", temporal_window: int = 10,
-                 embedding_dim: int = _DEFAULT_EMBEDDING_DIM):
+                 embedding_dim: int = _DEFAULT_EMBEDDING_DIM,
+                 sequence_ids: Optional[List[str]] = None):
         self.data_dir = Path(data_dir)
         self.temporal_window = temporal_window
         self.feature_dim = embedding_dim + _DEFAULT_META_FEATURES
-
-        # Load splits
-        with open(self.data_dir / "splits.json") as f:
-            splits = json.load(f)
-        self.sequence_ids = splits[split]
 
         # Load metadata
         with open(self.data_dir / "metadata.json") as f:
             metadata = json.load(f)
         self.metadata = {m["sequence_id"]: m for m in metadata}
+
+        if sequence_ids is not None:
+            # Explicit override (e.g. attack-type holdout filtering) bypasses splits.json.
+            self.sequence_ids = sequence_ids
+        else:
+            with open(self.data_dir / "splits.json") as f:
+                splits = json.load(f)
+            self.sequence_ids = splits[split]
 
         # Build index of all valid temporal windows
         self.windows = self._build_window_index()

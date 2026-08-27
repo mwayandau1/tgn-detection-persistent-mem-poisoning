@@ -1,0 +1,55 @@
+{
+  "checkpoint_size_mb": 2.557,
+  "parameters": {
+    "total": 667331,
+    "by_submodule": {
+      "node_memory": 198528,
+      "graph_encoder": 332416,
+      "attn_pool": 8321,
+      "temporal_aggregator": 99072,
+      "graph_head": 8321,
+      "node_head": 20673
+    }
+  },
+  "cuda": {
+    "batch_size_1": {
+      "mean_ms": 51.7546799999991,
+      "std_ms": 2.4067458300198834,
+      "min_ms": 48.79019999998491,
+      "max_ms": 61.298900000110734,
+      "p50_ms": 51.46660000002612,
+      "p95_ms": 55.7910900000479
+    },
+    "batch_size_4": {
+      "mean_ms": 55.90361333331657,
+      "std_ms": 3.8436378998808647,
+      "min_ms": 51.09309999988909,
+      "max_ms": 65.44430000008106,
+      "p50_ms": 56.07989999998608,
+      "p95_ms": 62.59466500002872
+    },
+    "throughput_windows_per_sec_bs1": 19.32,
+    "throughput_windows_per_sec_bs4": 71.55,
+    "peak_gpu_memory_mb": 116.88
+  },
+  "cpu": {
+    "batch_size_1": {
+      "mean_ms": 53.70395333337304,
+      "std_ms": 14.788607934069711,
+      "min_ms": 35.340500000074826,
+      "max_ms": 100.64939999983835,
+      "p50_ms": 51.32305000006454,
+      "p95_ms": 76.02120000005924
+    },
+    "batch_size_4": {
+      "mean_ms": 134.2844500000107,
+      "std_ms": 35.71916445149587,
+      "min_ms": 84.14650000008805,
+      "max_ms": 188.22879999993347,
+      "p50_ms": 143.01350000005186,
+      "p95_ms": 182.74765500001422
+    },
+    "throughput_windows_per_sec_bs1": 18.62,
+    "throughput_windows_per_sec_bs4": 29.79
+  }
+}

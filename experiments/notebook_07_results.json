@@ -1,0 +1,74 @@
+{
+  "attention_pooling_ablation": {
+    "graph_auroc": 0.9944243232939383,
+    "graph_ap": 0.9920927734618941,
+    "graph_f1": 0.9575757575757575,
+    "node_auroc": 0.9717607084764143,
+    "node_ap": 0.6160540676135076
+  },
+  "attack_type_breakdown": {
+    "direct_write": {
+      "auroc": 1.0,
+      "ap": 1.0,
+      "n": 264,
+      "n_positive": 21,
+      "n_windows_this_type": 22
+    },
+    "incremental_slow": {
+      "auroc": 1.0,
+      "ap": 0.9999999999999998,
+      "n": 275,
+      "n_positive": 33,
+      "n_windows_this_type": 33
+    },
+    "minja_query_only": {
+      "auroc": 1.0,
+      "ap": 1.0,
+      "n": 275,
+      "n_positive": 32,
+      "n_windows_this_type": 33
+    },
+    "_pooled": {
+      "auroc": 1.0,
+      "ap": 1.0,
+      "n": 330
+    }
+  },
+  "attribution_probes": {
+    "structural_probe": {
+      "auroc": 0.5946197102554328,
+      "ap": 0.38880242529239395
+    },
+    "content_probe": {
+      "auroc": 0.7728745711017918,
+      "ap": 0.4387719955912608,
+      "f1": 0.5576923076923077
+    }
+  },
+  "computational_profile": {
+    "checkpoint_size_mb": 2.557,
+    "parameters": {
+      "total": 667331,
+      "by_submodule": {
+        "node_memory": 198528,
+        "graph_encoder": 332416,
+        "attn_pool": 8321,
+        "temporal_aggregator": 99072,
+        "graph_head": 8321,
+        "node_head": 20673
+      }
+    },
+    "batch_size_1": {
+      "mean_ms": 70.28344666953974,
+      "p50_ms": 69.19850000122096,
+      "p95_ms": 80.47205999318975
+    },
+    "peak_gpu_memory_mb": 56.83
+  },
+  "holdout_generalization": {
+    "loss": 0.025412839119830593,
+    "graph_auroc": 0.0,
+    "node_auroc": 0.8543636617937689,
+    "n_sequences": 40
+  }
+}

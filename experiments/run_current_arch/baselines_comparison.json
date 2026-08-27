@@ -1,0 +1,46 @@
+{
+  "baselines": {
+    "Isolation Forest": {
+      "node_auroc": 0.5438047271924011,
+      "node_ap": 0.020610958975764836,
+      "graph_auroc": 0.5292603888677088,
+      "graph_f1": 0.2111111111111111
+    },
+    "One-Class SVM": {
+      "node_auroc": 0.522377050826355,
+      "node_ap": 0.019511149098851065,
+      "graph_auroc": 0.24499618757148303,
+      "graph_f1": 0.33753148614609574
+    },
+    "Static GNN": {
+      "graph_auroc": 0.9996664125047655,
+      "graph_ap": 0.9991064500199873,
+      "graph_f1": 0.9512195121951219,
+      "node_auroc": 0.9733456533526116,
+      "node_ap": 0.49983745733291157
+    },
+    "TGN Detector (Ours)": {
+      "graph_auroc": 1.0,
+      "graph_ap": 1.0,
+      "graph_f1": 0.9822485207100592,
+      "node_auroc": 0.9737396529911441,
+      "node_ap": 0.6342734134789492
+    }
+  },
+  "ablation": {
+    "Full Model": {
+      "graph_auroc": 1.0,
+      "graph_ap": 1.0,
+      "graph_f1": 0.9822485207100592,
+      "node_auroc": 0.9737396529911441,
+      "node_ap": 0.6342734134789492
+    },
+    "Without Temporal": {
+      "graph_auroc": 0.9996664125047655,
+      "graph_ap": 0.9991064500199873,
+      "graph_f1": 0.9512195121951219,
+      "node_auroc": 0.9733456533526116,
+      "node_ap": 0.49983745733291157
+    }
+  }
+}
