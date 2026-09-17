@@ -80,6 +80,61 @@ class AttentionPool(nn.Module):
         return out
 
 
+class ScaleAwarePool(nn.Module):
+    """Attention pooling, concatenated with readouts that preserve magnitude.
+
+    `AttentionPool` alone normalises its weights with a softmax, so the graph embedding is a
+    convex combination of node embeddings — a weighted average. `GATConv` does the same over
+    each neighbourhood. The whole path from node features to graph embedding is therefore
+    scale-invariant: it can represent what the average record looks like, but not how many
+    records there are, nor how much total mass sits in a dense region.
+
+    That is the wrong invariance for this task. A memory-poisoning attack is a *quantity* of
+    mutually-similar records appearing where ordinary traffic has few. A logistic regression on
+    nine hand-crafted features — node count, edge count, max degree, tightest-cluster density
+    and similarity — scores 0.995 on synthetic_gap0125 where the attention-pooled model scores
+    0.889. Every one of those features is a magnitude.
+
+    This adds, alongside the attention readout: an unnormalised sum, an element-wise max, and
+    log node count. Sum and count restore the ability to distinguish twenty tight records from
+    five; max gives a route for a single strongly-anomalous node to reach the graph head
+    without being averaged down.
+    """
+
+    def __init__(self, input_dim: int, hidden_dim: int = 64):
+        super().__init__()
+        self.attn = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.Tanh(),
+            nn.Linear(hidden_dim, 1),
+        )
+        self.out_dim = input_dim * 3 + 1
+
+    def forward(self, x: torch.Tensor, batch_idx: torch.Tensor,
+                num_graphs: Optional[int] = None) -> torch.Tensor:
+        if num_graphs is None:
+            num_graphs = int(batch_idx.max().item()) + 1 if batch_idx.numel() > 0 else 0
+
+        scores = self.attn(x).squeeze(-1)
+        weights = scatter_softmax(scores, batch_idx)
+        attn_out = x.new_zeros(num_graphs, x.size(-1)).index_add(
+            0, batch_idx, x * weights.unsqueeze(-1))
+
+        sum_out = x.new_zeros(num_graphs, x.size(-1)).index_add(0, batch_idx, x)
+
+        max_out = x.new_full((num_graphs, x.size(-1)), float("-inf"))
+        max_out = max_out.index_reduce(0, batch_idx, x, "amax", include_self=True)
+        max_out = torch.where(torch.isinf(max_out), torch.zeros_like(max_out), max_out)
+
+        counts = x.new_zeros(num_graphs).index_add(
+            0, batch_idx, x.new_ones(x.size(0)))
+        # log1p keeps the scale comparable to the learned embedding dimensions; the raw count
+        # runs to several hundred and would otherwise dominate the GRU input.
+        log_count = torch.log1p(counts).unsqueeze(-1)
+
+        return torch.cat([attn_out, sum_out, max_out, log_count], dim=-1)
+
+
 class TemporalAggregator(nn.Module):
     """GRU that reads sequence of graph-level embeddings over T timesteps."""
 
@@ -157,9 +212,16 @@ class TGNDetector(nn.Module):
             dropout=dropout,
             edge_dim=1,
         )
-        self.attn_pool = AttentionPool(input_dim=gat_hidden, hidden_dim=mlp_hidden)
+        # Opt-in so the change stays a clean ablation against the published numbers.
+        self.scale_readout = bool(model_cfg.get("scale_readout", False))
+        if self.scale_readout:
+            self.attn_pool = ScaleAwarePool(input_dim=gat_hidden, hidden_dim=mlp_hidden)
+            pooled_dim = self.attn_pool.out_dim
+        else:
+            self.attn_pool = AttentionPool(input_dim=gat_hidden, hidden_dim=mlp_hidden)
+            pooled_dim = gat_hidden
         self.temporal_aggregator = TemporalAggregator(
-            input_dim=gat_hidden,
+            input_dim=pooled_dim,
             hidden_dim=gru_hidden,
         )
         self.graph_head = GraphAnomalyHead(gru_hidden, mlp_hidden)
