@@ -112,7 +112,8 @@ class Trainer:
                  noise_augment_prob: float = 0.0, noise_sigma_max: float = 0.1,
                  model_cls: type = TGNDetector,
                  structural_features: bool = False,
-                 select_by: str = "auroc"):
+                 select_by: str = "auroc",
+                 scale_readout: bool = False):
         self.config = config
         self.train_cfg = config["training"]
         self.data_dir = Path(data_dir)
@@ -121,6 +122,11 @@ class Trainer:
         self.noise_sigma_max = noise_sigma_max
         self.structural_features = structural_features
         self.select_by = select_by
+        # Must be set before the model is constructed: it changes the pooled dimension
+        # the temporal GRU is built to accept.
+        config["model"]["scale_readout"] = bool(scale_readout)
+        if scale_readout:
+            print("  Scale-aware readout: attention + sum + max + log node count")
 
         # The model's input width must match what the dataset emits.
         if structural_features:
@@ -431,6 +437,14 @@ def main():
                          help="Criterion for saving phase2_best.pt. Validation loss and AUROC "
                               "diverge once the model starts overfitting, so loss-based "
                               "selection can save the worst checkpoint by the reported metric.")
+    parser.add_argument("--scale-readout", action="store_true",
+                         help="Concatenate sum, max and log-node-count readouts to the "
+                              "attention pool. Attention pooling and GATConv are both "
+                              "softmax-normalised, so the whole node-to-graph path is a "
+                              "weighted average and cannot represent how MANY records sit in "
+                              "a dense region -- which is what the attack is. A logistic "
+                              "regression on nine magnitude features scores 0.995 on "
+                              "synthetic_gap0125 where this model scores 0.889.")
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
@@ -453,6 +467,7 @@ def main():
         noise_sigma_max=args.noise_sigma_max,
         structural_features=args.structural_features,
         select_by=args.select_by,
+        scale_readout=args.scale_readout,
     )
 
     if not args.skip_phase1:
