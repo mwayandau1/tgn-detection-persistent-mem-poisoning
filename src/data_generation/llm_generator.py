@@ -747,9 +747,13 @@ def separability_report(output_path: Path, metadata: List[Dict], emb_dim: int,
             out.append(float(s_[np.ix_(g, g)][iu].mean()))
         return out
 
-    # First pass: how many records a typical attack plants, which sets the neighbourhood
-    # size the benign side is measured at. Comparing an attack cluster against a benign
-    # group of a different size would confound cluster size with cluster tightness.
+    # The gap is measured PER SEQUENCE, with the benign neighbourhood size k set to that
+    # sequence's own injected count. Cluster tightness falls steeply with cluster size --
+    # on this data the benign median runs 0.713 at k=10 and 0.567 at k=20, so the gap
+    # doubles between them. Measuring the attack cluster against a benign cluster of a
+    # different size would therefore report attack-type differences in `num_injected_records`
+    # as if they were differences in stealth, and gaps computed at different k are not
+    # comparable at all.
     n_poison_nodes = []
     for entry in metadata:
         snaps = sorted((output_path / entry["sequence_id"]).glob("snapshot_*.npz"))
@@ -757,7 +761,7 @@ def separability_report(output_path: Path, metadata: List[Dict], emb_dim: int,
             n_poison_nodes.append(int(np.load(snaps[-1])["node_labels"].sum()))
     k_ref = int(np.median(n_poison_nodes)) if n_poison_nodes else 15
 
-    poison_sims, benign_sims, benign_typ, benign_max = [], [], [], []
+    poison_sims, benign_sims, benign_typ, benign_max, gaps = [], [], [], [], []
     counts = {"clean": [], "poisoned": []}
 
     for entry in metadata:
@@ -772,14 +776,21 @@ def separability_report(output_path: Path, metadata: List[Dict], emb_dim: int,
         nx_ = x / (np.linalg.norm(x, axis=1, keepdims=True) + 1e-8)
 
         pos = nx_[y == 1]
+        poison_here = None
         if pos.shape[0] >= 2:
             sp = pos @ pos.T
-            poison_sims.append(float(sp[np.triu_indices(pos.shape[0], k=1)].mean()))
+            poison_here = float(sp[np.triu_indices(pos.shape[0], k=1)].mean())
+            poison_sims.append(poison_here)
 
         neg = nx_[y == 0]
         if neg.shape[0] >= 2:
             sn = neg @ neg.T
             benign_sims.append(float(sn[np.triu_indices(neg.shape[0], k=1)].mean()))
+            # Matched k for the paired comparison; k_ref only for the headline benign figure.
+            k_here = pos.shape[0] if pos.shape[0] >= 2 else k_ref
+            nb_matched = neighbourhood_cosines(sn, min(k_here, neg.shape[0] - 1))
+            if nb_matched and poison_here is not None:
+                gaps.append(poison_here - float(np.median(nb_matched)))
             nb = neighbourhood_cosines(sn, min(k_ref, neg.shape[0] - 1))
             if nb:
                 benign_typ.append(float(np.median(nb)))
@@ -789,6 +800,7 @@ def separability_report(output_path: Path, metadata: List[Dict], emb_dim: int,
     poison_mean = mean(poison_sims)
     benign_mean = mean(benign_sims)
     typ_mean = mean(benign_typ)
+    gap = mean(gaps)
     clean_n, pois_n = mean(counts["clean"]), mean(counts["poisoned"])
 
     report = {
@@ -797,12 +809,16 @@ def separability_report(output_path: Path, metadata: List[Dict], emb_dim: int,
         "benign_typical_cluster_cosine": typ_mean,
         "benign_tightest_cluster_cosine": mean(benign_max),
         "cluster_size_k": k_ref,
-        "coherence_gap": poison_mean - typ_mean,
+        "coherence_gap": gap,
+        "coherence_gap_per_sequence": gaps,
         "mean_records_clean": clean_n,
         "mean_records_poisoned": pois_n,
         "mean_injected_nodes": mean(n_poison_nodes),
-        "note": ("coherence_gap = poison mean pairwise cosine minus the median benign "
-                 "k-record neighbourhood cosine, k = median injected count. Comparable to "
+        "note": ("coherence_gap is measured per poisoned sequence as its poison mean "
+                 "pairwise cosine minus the median benign neighbourhood cosine at k = that "
+                 "sequence's own injected count, then averaged. k matters: benign tightness "
+                 "falls steeply with cluster size, so gaps computed at different k are not "
+                 "comparable. Comparable to "
                  "the synthetic generator's dial and to the curve in "
                  "docs/benchmark_difficulty_analysis.md section 4d. "
                  "benign_tightest_cluster_cosine is the max over neighbourhoods, reported "
@@ -817,8 +833,7 @@ def separability_report(output_path: Path, metadata: List[Dict], emb_dim: int,
     print("  benign  tightest cluster (max)   : {:.4f}  (reference only, biased high)".format(
         mean(benign_max)))
     print("  poison  mean pairwise cosine     : {:.4f}".format(poison_mean))
-    print("  COHERENCE GAP                    : {:+.4f}   <-- difficulty dial".format(
-        poison_mean - typ_mean))
+    print("  COHERENCE GAP (k-matched)        : {:+.4f}   <-- difficulty dial".format(gap))
     print("  mean records/seq  clean          : {:.1f}".format(clean_n))
     print("  mean records/seq  poisoned       : {:.1f}".format(pois_n))
     leak = abs(clean_n - pois_n)
