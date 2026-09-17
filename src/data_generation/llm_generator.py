@@ -239,7 +239,15 @@ class LLMMemoryGenerator:
         """Construct the client for one provider. Does not validate the key."""
         if name == "openrouter":
             from openai import OpenAI
-            self.api_model = os.environ.get("OPENROUTER_MODEL", "google/gemini-2.0-flash-exp:free")
+            # google/gemini-2.0-flash-exp:free was the previous default and no longer has
+            # any endpoint on OpenRouter (404). Flash Lite was picked over mistral-small-24b,
+            # llama-3.1-8b and qwen3-30b on the generator's own batch prompt: all four parsed
+            # 10/10 records, but Flash Lite ran at 6.2 s/call against 23-97 s for the others,
+            # with the second-lowest mean pairwise cosine (0.154) of the batch it produced.
+            # That cosine matters — benign records that all read alike raise the benign
+            # similarity floor and shrink the coherence gap for reasons that have nothing to
+            # do with the attack.
+            self.api_model = os.environ.get("OPENROUTER_MODEL", "google/gemini-2.5-flash-lite")
             self.api_client = OpenAI(
                 base_url="https://openrouter.ai/api/v1",
                 api_key=key,
@@ -706,36 +714,51 @@ def separability_report(output_path: Path, metadata: List[Dict], emb_dim: int,
                         threshold: float) -> dict:
     """Measure, after generation, the quantities that actually govern difficulty.
 
-    The synthetic generator prints the same report, so the two benchmarks can be placed
-    on one axis. Two numbers matter:
+    The synthetic generator prints the same report, so the two benchmarks can be placed on
+    one axis. Two numbers matter:
 
       coherence gap  -- how much tighter the attacker's planted records are to each other
-                        than the tightest comparable group of ordinary records is. This is
-                        the difficulty dial. Compare against the measured curve in
+                        than an ordinary topic cluster of the same size is. This is the
+                        difficulty dial. Compare against the measured curve in
                         docs/benchmark_difficulty_analysis.md section 4d.
       record counts  -- mean records per sequence, clean vs poisoned. These must match.
                         When injections were appended rather than substituted, poisoned
-                        sequences ended with more records than clean ones and the label
-                        was recoverable from node count alone, at AUROC 1.0.
+                        sequences ended with more records than clean ones and the label was
+                        recoverable from node count alone, at AUROC 1.0.
+
+    Both sides of the gap must be the same kind of estimator. The poison side is a mean over
+    one cluster, so the benign side is the median over every record's neighbourhood -- a
+    typical topic cluster. An earlier version took the benign MAX over all ~20k candidate
+    neighbourhoods, which selects the extreme tail (0.906 against a typical 0.633 on the same
+    data) and reported a negative gap for a benchmark that is in fact easy.
     """
-    def best_cluster_mean(sim, k):
+    def neighbourhood_cosines(sim, k):
+        """Mean internal cosine of each record's k-record neighbourhood, one per record."""
         n = sim.shape[0]
         if n <= k or k < 2:
-            return 0.0
+            return []
         s_ = sim.copy()
         np.fill_diagonal(s_, -np.inf)
-        order = np.argsort(-np.sort(s_, axis=1)[:, k - 2])[:48]
         iu = np.triu_indices(k, k=1)
-        best = 0.0
-        for i in order:
+        out = []
+        for i in range(n):
             nb = np.argpartition(-s_[i], k - 2)[:k - 1]
             g = np.concatenate([[i], nb])
-            best = max(best, float(s_[np.ix_(g, g)][iu].mean()))
-        return best
+            out.append(float(s_[np.ix_(g, g)][iu].mean()))
+        return out
 
-    poison_sims, benign_sims, benign_tight = [], [], []
-    counts = {"clean": [], "poisoned": []}
+    # First pass: how many records a typical attack plants, which sets the neighbourhood
+    # size the benign side is measured at. Comparing an attack cluster against a benign
+    # group of a different size would confound cluster size with cluster tightness.
     n_poison_nodes = []
+    for entry in metadata:
+        snaps = sorted((output_path / entry["sequence_id"]).glob("snapshot_*.npz"))
+        if snaps and entry["label"] == "poisoned":
+            n_poison_nodes.append(int(np.load(snaps[-1])["node_labels"].sum()))
+    k_ref = int(np.median(n_poison_nodes)) if n_poison_nodes else 15
+
+    poison_sims, benign_sims, benign_typ, benign_max = [], [], [], []
+    counts = {"clean": [], "poisoned": []}
 
     for entry in metadata:
         seq_dir = output_path / entry["sequence_id"]
@@ -746,55 +769,60 @@ def separability_report(output_path: Path, metadata: List[Dict], emb_dim: int,
         x = d["node_features"][:, :emb_dim]
         y = d["node_labels"]
         counts[entry["label"]].append(int(x.shape[0]))
-
         nx_ = x / (np.linalg.norm(x, axis=1, keepdims=True) + 1e-8)
-        iu = lambda m: np.triu_indices(m, k=1)
 
         pos = nx_[y == 1]
         if pos.shape[0] >= 2:
             sp = pos @ pos.T
-            poison_sims.append(float(sp[iu(pos.shape[0])].mean()))
-            n_poison_nodes.append(int(pos.shape[0]))
+            poison_sims.append(float(sp[np.triu_indices(pos.shape[0], k=1)].mean()))
 
         neg = nx_[y == 0]
         if neg.shape[0] >= 2:
-            sample = neg if neg.shape[0] <= 300 else neg[
-                np.random.default_rng(0).choice(neg.shape[0], 300, replace=False)]
-            sn = sample @ sample.T
-            benign_sims.append(float(sn[iu(sample.shape[0])].mean()))
-            k = int(np.median(n_poison_nodes)) if n_poison_nodes else 15
-            benign_tight.append(best_cluster_mean(sn, min(k, sample.shape[0] - 1)))
+            sn = neg @ neg.T
+            benign_sims.append(float(sn[np.triu_indices(neg.shape[0], k=1)].mean()))
+            nb = neighbourhood_cosines(sn, min(k_ref, neg.shape[0] - 1))
+            if nb:
+                benign_typ.append(float(np.median(nb)))
+                benign_max.append(float(np.max(nb)))
 
     mean = lambda v: float(np.mean(v)) if v else 0.0
     poison_mean = mean(poison_sims)
     benign_mean = mean(benign_sims)
-    tight_mean = mean(benign_tight)
+    typ_mean = mean(benign_typ)
+    clean_n, pois_n = mean(counts["clean"]), mean(counts["poisoned"])
 
     report = {
         "poison_mean_pairwise_cosine": poison_mean,
         "benign_mean_pairwise_cosine": benign_mean,
-        "benign_best_cluster_mean_similarity": tight_mean,
-        "coherence_gap": poison_mean - tight_mean,
-        "mean_records_clean": mean(counts["clean"]),
-        "mean_records_poisoned": mean(counts["poisoned"]),
+        "benign_typical_cluster_cosine": typ_mean,
+        "benign_tightest_cluster_cosine": mean(benign_max),
+        "cluster_size_k": k_ref,
+        "coherence_gap": poison_mean - typ_mean,
+        "mean_records_clean": clean_n,
+        "mean_records_poisoned": pois_n,
         "mean_injected_nodes": mean(n_poison_nodes),
-        "note": ("coherence_gap = poison mean pairwise cosine minus the mean similarity of "
-                 "the tightest comparable group of benign records. It is the analogue of "
-                 "the synthetic generator's dial and is comparable to the curve in "
-                 "docs/benchmark_difficulty_analysis.md section 4d. mean_records_clean and "
-                 "mean_records_poisoned must match, or record count leaks the label."),
+        "note": ("coherence_gap = poison mean pairwise cosine minus the median benign "
+                 "k-record neighbourhood cosine, k = median injected count. Comparable to "
+                 "the synthetic generator's dial and to the curve in "
+                 "docs/benchmark_difficulty_analysis.md section 4d. "
+                 "benign_tightest_cluster_cosine is the max over neighbourhoods, reported "
+                 "for reference only: it is an extreme-value statistic and must not be used "
+                 "as the benign baseline. mean_records_clean and mean_records_poisoned must "
+                 "match, or record count leaks the label."),
     }
 
     print("\n=== Separability report (pre-training) ===")
-    print("  benign  mean pairwise cosine   : {:.4f}".format(benign_mean))
-    print("  benign  tightest-group cosine  : {:.4f}".format(tight_mean))
-    print("  poison  mean pairwise cosine   : {:.4f}".format(poison_mean))
-    print("  COHERENCE GAP                  : {:+.4f}   <-- difficulty dial".format(
-        poison_mean - tight_mean))
-    print("  mean records/seq  clean        : {:.1f}".format(mean(counts["clean"])))
-    print("  mean records/seq  poisoned     : {:.1f}".format(mean(counts["poisoned"])))
-    leak = abs(mean(counts["clean"]) - mean(counts["poisoned"]))
-    print("  record-count difference        : {:.1f}  {}".format(
+    print("  benign  mean pairwise cosine     : {:.4f}".format(benign_mean))
+    print("  benign  typical {:2d}-record cluster: {:.4f}  <- baseline".format(k_ref, typ_mean))
+    print("  benign  tightest cluster (max)   : {:.4f}  (reference only, biased high)".format(
+        mean(benign_max)))
+    print("  poison  mean pairwise cosine     : {:.4f}".format(poison_mean))
+    print("  COHERENCE GAP                    : {:+.4f}   <-- difficulty dial".format(
+        poison_mean - typ_mean))
+    print("  mean records/seq  clean          : {:.1f}".format(clean_n))
+    print("  mean records/seq  poisoned       : {:.1f}".format(pois_n))
+    leak = abs(clean_n - pois_n)
+    print("  record-count difference          : {:.1f}  {}".format(
         leak, "OK (no count leak)" if leak < 0.5 else "LEAK -- poisoned sequences are longer"))
     print("\n  Reference points from the synthetic curve (docs section 4d):")
     print("    coherence gap ~0.16  -> graph AUROC 0.997")
@@ -816,6 +844,12 @@ def main():
                              "make a smoke test cheap, but note the injection schedule starts at "
                              "t=50 and spreads up to injection_spread interactions, so anything "
                              "below ~170 silently drops injections for the slower attack types.")
+    parser.add_argument("--coherence", type=float, default=None,
+                        help="Override every attack type's semantic_coherence. Mirrors the "
+                             "synthetic generator's flag of the same name. Lower values spread "
+                             "the attack across more poison templates, loosening the planted "
+                             "cluster. The generator prints the resulting coherence gap, which "
+                             "is the number to compare against the difficulty curve.")
     parser.add_argument("--provider", default="auto",
                         choices=["auto", "openrouter", "anthropic", "google", "openai", "stub"],
                         help="LLM provider. 'auto' tries each key in turn and verifies it with "
@@ -825,7 +859,10 @@ def main():
     parser.add_argument("--workers", type=int, default=4, help="Number of parallel worker threads for API mode (default: 4)")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--api-key", type=str, default=None, help="OpenRouter or API key (sets OPENROUTER_API_KEY)")
-    parser.add_argument("--model", type=str, default=None, help="OpenRouter model (e.g. google/gemini-2.0-flash-exp:free)")
+    parser.add_argument("--model", type=str, default=None,
+                        help="OpenRouter model id (default: google/gemini-2.5-flash-lite). "
+                             "Changing it changes the benign similarity floor and therefore "
+                             "the measured coherence gap, so keep it fixed across a dataset.")
     args = parser.parse_args()
 
     if args.api_key:
@@ -850,6 +887,10 @@ def main():
     num_sequences = config["simulation"]["num_sequences"]
     attack_ratio = config["attacks"]["attack_ratio"]
     attack_types = config["attacks"]["types"]
+    if args.coherence is not None:
+        for a in attack_types:
+            a["semantic_coherence"] = args.coherence
+        print(f"semantic_coherence overridden to {args.coherence} for all attack types")
 
     num_poisoned = int(num_sequences * attack_ratio)
     num_clean = num_sequences - num_poisoned
