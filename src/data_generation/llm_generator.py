@@ -133,6 +133,22 @@ POISON_TEMPLATES = {
 }
 
 
+# Vocabulary for the offline stub provider (--provider stub). Only used when no LLM is
+# called; see LLMMemoryGenerator._stub_text.
+STUB_STYLE_WORDS = [
+    "Following up on this,", "To resolve this quickly,", "As previously discussed,",
+    "For reference,", "In this case,", "After reviewing the account,",
+    "Per our standard procedure,", "Based on the logs,",
+]
+STUB_TAIL_WORDS = [
+    "Let me know if anything is still unclear.",
+    "I have noted this on the ticket.",
+    "The change should take effect within a few minutes.",
+    "Please confirm once you have tried this.",
+    "I have escalated it to the relevant team.",
+]
+
+
 class RateLimiter:
     """Simple token-bucket rate limiter."""
 
@@ -153,7 +169,7 @@ class RateLimiter:
 class LLMMemoryGenerator:
     """Generates realistic memory records using an LLM."""
 
-    def __init__(self, config: dict):
+    def __init__(self, config: dict, provider: str = "auto"):
         self.config = config
         self.sim_cfg = config["simulation"]
         self.domain = self.sim_cfg["domain"]
@@ -164,103 +180,198 @@ class LLMMemoryGenerator:
         self.encoder = SentenceTransformer("all-MiniLM-L6-v2")
 
         # Initialize LLM API client
-        self._init_api_client()
+        self._init_api_client(provider)
 
-    def _init_api_client(self):
-        """Initialize API client (OpenRouter, Anthropic Claude, Google Gemini, or OpenAI)."""
-        api_key = os.environ.get("OPENROUTER_API_KEY")
-        if api_key:
+    # Providers are tried in this order when --provider is left at "auto".
+    _PROVIDER_ENV = {
+        "openrouter": "OPENROUTER_API_KEY",
+        "anthropic": "ANTHROPIC_API_KEY",
+        "google": "GOOGLE_API_KEY",
+        "openai": "OPENAI_API_KEY",
+    }
+
+    def _init_api_client(self, provider: str = "auto"):
+        """Select and validate an LLM provider.
+
+        Each candidate is checked with one short live call before generation starts.
+        An earlier version selected purely on whether an environment variable was set,
+        so an expired key meant every one of the thousands of generation calls burned
+        five retries with exponential backoff and then returned "[generation failed]" --
+        a dataset of placeholder strings, produced slowly and without an error. It also
+        meant a dead OPENROUTER_API_KEY shadowed a working ANTHROPIC_API_KEY, because
+        the fall-through only tested for presence.
+        """
+        if provider == "stub":
+            self.api_provider = "stub"
+            self.api_client = None
+            self.api_model = "stub"
+            print("Using OFFLINE STUB provider -- deterministic canned text, no API calls.")
+            print("  This exercises the generation pipeline only. The text is NOT suitable")
+            print("  for the reported dataset.")
+            return
+
+        candidates = list(self._PROVIDER_ENV) if provider == "auto" else [provider]
+        tried = []
+        for name in candidates:
+            key = os.environ.get(self._PROVIDER_ENV[name])
+            if not key:
+                tried.append("{}: {} not set".format(name, self._PROVIDER_ENV[name]))
+                continue
+            try:
+                self._build_client(name, key)
+            except Exception as e:
+                tried.append("{}: client init failed ({})".format(name, e))
+                continue
+            ok, detail = self._verify_credentials()
+            if ok:
+                print("Using {} ({}) -- credentials verified.".format(name, self.api_model))
+                return
+            tried.append("{}: {}".format(name, detail))
+            print("  {} key present but rejected: {}".format(name, detail))
+
+        raise RuntimeError(
+            "No usable LLM provider.\n  " + "\n  ".join(tried) +
+            "\n\nSet a working key in .env, pass --provider <name> to force one, or use "
+            "--provider stub for an offline pipeline test."
+        )
+
+    def _build_client(self, name: str, key: str):
+        """Construct the client for one provider. Does not validate the key."""
+        if name == "openrouter":
             from openai import OpenAI
-            self.api_provider = "openrouter"
             self.api_model = os.environ.get("OPENROUTER_MODEL", "google/gemini-2.0-flash-exp:free")
-            headers = {
-                "HTTP-Referer": "https://github.com/mwayandau1/tgn-detection-persistent-mem-poisoning",
-                "X-Title": "TGN Memory Poisoning Dataset Generator",
-            }
             self.api_client = OpenAI(
                 base_url="https://openrouter.ai/api/v1",
-                api_key=api_key,
-                default_headers=headers,
+                api_key=key,
+                default_headers={
+                    "HTTP-Referer": "https://github.com/mwayandau1/tgn-detection-persistent-mem-poisoning",
+                    "X-Title": "TGN Memory Poisoning Dataset Generator",
+                },
             )
-            print(f"Using OpenRouter API ({self.api_model})")
+        elif name == "anthropic":
+            import anthropic
+            self.api_client = anthropic.Anthropic(api_key=key)
+            self.api_model = os.environ.get("CLAUDE_MODEL", "claude-haiku-4-5-20251001")
+        elif name == "google":
+            from google import genai
+            self.api_client = genai.Client(api_key=key)
+            self.api_model = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
+        elif name == "openai":
+            from openai import OpenAI
+            self.api_client = OpenAI(api_key=key)
+            self.api_model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
         else:
-            api_key = os.environ.get("ANTHROPIC_API_KEY")
-            if api_key:
-                import anthropic
-                self.api_client = anthropic.Anthropic(api_key=api_key)
-                self.api_provider = "anthropic"
-                self.api_model = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-5-20250929")
-                print(f"Using Anthropic Claude ({self.api_model})")
-            else:
-                api_key = os.environ.get("GOOGLE_API_KEY")
-                if api_key:
-                    from google import genai
-                    self.api_client = genai.Client(api_key=api_key)
-                    self.api_provider = "google"
-                    # Allow model override via env var (useful when free tier quota varies by model)
-                    self.api_model = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
-                    print(f"Using Google Gemini ({self.api_model})")
-                else:
-                    api_key = os.environ.get("OPENAI_API_KEY")
-                    if api_key:
-                        from openai import OpenAI
-                        self.api_client = OpenAI(api_key=api_key)
-                        self.api_provider = "openai"
-                        print("Using OpenAI GPT-3.5-turbo")
-                    else:
-                        raise ValueError(
-                            "Set OPENROUTER_API_KEY, ANTHROPIC_API_KEY, GOOGLE_API_KEY, or OPENAI_API_KEY for API mode."
-                        )
+            raise ValueError("Unknown provider: {}".format(name))
+        self.api_provider = name
+
+    def _verify_credentials(self):
+        """One short live call. Returns (ok, detail)."""
+        try:
+            out = self._raw_call("Reply with exactly: OK", max_tokens=8)
+            return bool(out), ("" if out else "empty response")
+        except Exception as e:
+            return False, "{}: {}".format(type(e).__name__, str(e)[:160])
+
+    def _stub_text(self, prompt: str) -> str:
+        """Deterministic offline stand-in for the LLM.
+
+        Produces prompt-conditioned text with no network call, so the injection schedule,
+        record counts, snapshot construction and splits can all be exercised for free.
+        Poison responses embed the hidden instruction verbatim, so two injections sharing
+        an instruction land close together in embedding space and two with different
+        instructions do not -- which is the mechanism `semantic_coherence` controls.
+
+        The absolute similarities this produces are an artefact of the canned vocabulary
+        and must NOT be used to calibrate `semantic_coherence`; only a live run can do that.
+        """
+        import re
+        import hashlib
+
+        def pick(seed_text, options):
+            h = int(hashlib.sha256(seed_text.encode("utf-8")).hexdigest()[:8], 16)
+            return options[h % len(options)]
+
+        m = re.search(r"Topics \(one per interaction\):\s*(.+)", prompt)
+        if m:
+            topics = [t.strip() for t in m.group(1).split(",") if t.strip()]
+            blocks = []
+            for i, topic in enumerate(topics):
+                salt = "{}|{}|{}".format(i, topic, prompt[:48])
+                blocks.append(
+                    "---\nQuery: I need help with {}. {} can you advise?\n"
+                    "Response: {} here is how to handle {}. {}\n---".format(
+                        topic,
+                        pick(salt + "q", STUB_STYLE_WORDS),
+                        pick(salt + "r", STUB_STYLE_WORDS),
+                        topic,
+                        pick(salt + "t", STUB_TAIL_WORDS),
+                    )
+                )
+            return "\n".join(blocks)
+
+        m = re.search(r"The hidden instruction is:\s*(.+)", prompt)
+        if m:
+            instruction = m.group(1).split("\n")[0].strip()
+            salt = prompt[-96:]
+            return "{} the recommended approach is as follows. {} {}".format(
+                pick(salt, STUB_STYLE_WORDS), instruction, pick(salt + "x", STUB_TAIL_WORDS))
+
+        m = re.search(r"query about:\s*(.+)", prompt)
+        topic = m.group(1).strip() if m else "the reported issue"
+        salt = prompt[-96:]
+        return "{} I have a question about {}. {}".format(
+            pick(salt, STUB_STYLE_WORDS), topic, pick(salt + "y", STUB_TAIL_WORDS))
+
+    def _raw_call(self, prompt: str, max_tokens: int = 200) -> str:
+        """One provider call, with no retries and no rate limiting."""
+        if self.api_provider == "stub":
+            return self._stub_text(prompt)
+        if self.api_provider in ("openrouter", "openai"):
+            response = self.api_client.chat.completions.create(
+                model=self.api_model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=max_tokens,
+                temperature=0.7,
+            )
+            return (response.choices[0].message.content or "").strip()
+        if self.api_provider == "anthropic":
+            response = self.api_client.messages.create(
+                model=self.api_model,
+                max_tokens=max_tokens,
+                temperature=0.7,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            return response.content[0].text.strip()
+        if self.api_provider == "google":
+            from google.genai import types
+            response = self.api_client.models.generate_content(
+                model=self.api_model,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    max_output_tokens=max_tokens,
+                    temperature=0.7,
+                ),
+            )
+            return response.text.strip()
+        raise ValueError("Unknown provider: {}".format(self.api_provider))
 
     def _generate_text(self, prompt: str, max_tokens: int = 200) -> str:
         """Generate text from the LLM with retry logic and rate limiting."""
+        if self.api_provider == "stub":
+            return self._stub_text(prompt)
         self.rate_limiter.wait()
         for attempt in range(5):
             try:
-                if self.api_provider == "openrouter":
-                    response = self.api_client.chat.completions.create(
-                        model=self.api_model,
-                        messages=[{"role": "user", "content": prompt}],
-                        max_tokens=max_tokens,
-                        temperature=0.7,
-                    )
-                    return response.choices[0].message.content.strip()
-                elif self.api_provider == "anthropic":
-                    response = self.api_client.messages.create(
-                        model=self.api_model,
-                        max_tokens=max_tokens,
-                        temperature=0.7,
-                        messages=[{"role": "user", "content": prompt}],
-                    )
-                    return response.content[0].text.strip()
-                elif self.api_provider == "google":
-                    from google.genai import types
-                    response = self.api_client.models.generate_content(
-                        model=self.api_model,
-                        contents=prompt,
-                        config=types.GenerateContentConfig(
-                            max_output_tokens=max_tokens,
-                            temperature=0.7,
-                        ),
-                    )
-                    return response.text.strip()
-                elif self.api_provider == "openai":
-                    response = self.api_client.chat.completions.create(
-                        model="gpt-3.5-turbo",
-                        messages=[{"role": "user", "content": prompt}],
-                        max_tokens=max_tokens,
-                        temperature=0.7,
-                    )
-                    return response.choices[0].message.content.strip()
+                return self._raw_call(prompt, max_tokens)
             except Exception as e:
                 if attempt < 4:
                     wait = 2 ** (attempt + 1)  # Exponential backoff: 2s, 4s, 8s, 16s
                     if "429" in str(e) or "rate" in str(e).lower():
                         wait = max(wait, 5.0)
-                    print(f"    API error: {e}. Retrying in {wait}s...")
+                    print("    API error: {}. Retrying in {}s...".format(e, wait))
                     time.sleep(wait)
                 else:
-                    print(f"    API failed after 5 attempts: {e}")
+                    print("    API failed after 5 attempts: {}".format(e))
                     return "[generation failed]"
         return "[generation failed]"
 
@@ -366,6 +477,13 @@ class LLMMemoryGenerator:
 
         coherence -> 1.0 : a single instruction reused for every injection (near-duplicates)
         coherence -> 0.0 : a distinct instruction per injection (maximally diffuse)
+
+        The dial saturates: `span` is capped at `num_injected`, so once
+        (1 - coherence) * len(templates) reaches the injection count, every injection
+        already has its own instruction and lowering coherence further changes nothing.
+        With 30 templates and 15 injections that ceiling is coherence 0.5. Diversity below
+        it has to come from the phrasing directive in `generate_poisoned_record`, not from
+        the template pool.
         """
         templates = POISON_TEMPLATES[self.domain]
         coherence = float(np.clip(coherence, 0.0, 1.0))
@@ -448,7 +566,19 @@ class LLMMemoryGenerator:
             if spread <= 1:
                 injection_times = {start + i for i in range(num_injected)}
             else:
-                injection_times = set(rng.integers(start, start + spread, size=num_injected))
+                # Sample distinct slots. Drawing with replacement and collapsing into a set
+                # loses whichever draws collide, so `num_injected_records` silently became an
+                # upper bound: a 15-injection attack landed 12 records and a 20-injection one
+                # landed 19, varying per sequence. That makes attack strength an uncontrolled
+                # random variable, which matters because it is the thing being measured.
+                width = min(spread, num_interactions - start)
+                n_slots = min(num_injected, max(1, width))
+                if n_slots < num_injected:
+                    print(f"    WARNING: only {n_slots} slots available for "
+                          f"{num_injected} injections (start={start}, spread={spread}, "
+                          f"num_interactions={num_interactions})")
+                injection_times = set(
+                    (start + rng.choice(width, size=n_slots, replace=False)).tolist())
 
             # One instruction per injection slot, diversity governed by coherence.
             poison_plan = self._select_poison_templates(coherence, len(injection_times), rng)
@@ -572,11 +702,126 @@ class LLMMemoryGenerator:
         )
 
 
+def separability_report(output_path: Path, metadata: List[Dict], emb_dim: int,
+                        threshold: float) -> dict:
+    """Measure, after generation, the quantities that actually govern difficulty.
+
+    The synthetic generator prints the same report, so the two benchmarks can be placed
+    on one axis. Two numbers matter:
+
+      coherence gap  -- how much tighter the attacker's planted records are to each other
+                        than the tightest comparable group of ordinary records is. This is
+                        the difficulty dial. Compare against the measured curve in
+                        docs/benchmark_difficulty_analysis.md section 4d.
+      record counts  -- mean records per sequence, clean vs poisoned. These must match.
+                        When injections were appended rather than substituted, poisoned
+                        sequences ended with more records than clean ones and the label
+                        was recoverable from node count alone, at AUROC 1.0.
+    """
+    def best_cluster_mean(sim, k):
+        n = sim.shape[0]
+        if n <= k or k < 2:
+            return 0.0
+        s_ = sim.copy()
+        np.fill_diagonal(s_, -np.inf)
+        order = np.argsort(-np.sort(s_, axis=1)[:, k - 2])[:48]
+        iu = np.triu_indices(k, k=1)
+        best = 0.0
+        for i in order:
+            nb = np.argpartition(-s_[i], k - 2)[:k - 1]
+            g = np.concatenate([[i], nb])
+            best = max(best, float(s_[np.ix_(g, g)][iu].mean()))
+        return best
+
+    poison_sims, benign_sims, benign_tight = [], [], []
+    counts = {"clean": [], "poisoned": []}
+    n_poison_nodes = []
+
+    for entry in metadata:
+        seq_dir = output_path / entry["sequence_id"]
+        snaps = sorted(seq_dir.glob("snapshot_*.npz"))
+        if not snaps:
+            continue
+        d = np.load(snaps[-1])
+        x = d["node_features"][:, :emb_dim]
+        y = d["node_labels"]
+        counts[entry["label"]].append(int(x.shape[0]))
+
+        nx_ = x / (np.linalg.norm(x, axis=1, keepdims=True) + 1e-8)
+        iu = lambda m: np.triu_indices(m, k=1)
+
+        pos = nx_[y == 1]
+        if pos.shape[0] >= 2:
+            sp = pos @ pos.T
+            poison_sims.append(float(sp[iu(pos.shape[0])].mean()))
+            n_poison_nodes.append(int(pos.shape[0]))
+
+        neg = nx_[y == 0]
+        if neg.shape[0] >= 2:
+            sample = neg if neg.shape[0] <= 300 else neg[
+                np.random.default_rng(0).choice(neg.shape[0], 300, replace=False)]
+            sn = sample @ sample.T
+            benign_sims.append(float(sn[iu(sample.shape[0])].mean()))
+            k = int(np.median(n_poison_nodes)) if n_poison_nodes else 15
+            benign_tight.append(best_cluster_mean(sn, min(k, sample.shape[0] - 1)))
+
+    mean = lambda v: float(np.mean(v)) if v else 0.0
+    poison_mean = mean(poison_sims)
+    benign_mean = mean(benign_sims)
+    tight_mean = mean(benign_tight)
+
+    report = {
+        "poison_mean_pairwise_cosine": poison_mean,
+        "benign_mean_pairwise_cosine": benign_mean,
+        "benign_best_cluster_mean_similarity": tight_mean,
+        "coherence_gap": poison_mean - tight_mean,
+        "mean_records_clean": mean(counts["clean"]),
+        "mean_records_poisoned": mean(counts["poisoned"]),
+        "mean_injected_nodes": mean(n_poison_nodes),
+        "note": ("coherence_gap = poison mean pairwise cosine minus the mean similarity of "
+                 "the tightest comparable group of benign records. It is the analogue of "
+                 "the synthetic generator's dial and is comparable to the curve in "
+                 "docs/benchmark_difficulty_analysis.md section 4d. mean_records_clean and "
+                 "mean_records_poisoned must match, or record count leaks the label."),
+    }
+
+    print("\n=== Separability report (pre-training) ===")
+    print("  benign  mean pairwise cosine   : {:.4f}".format(benign_mean))
+    print("  benign  tightest-group cosine  : {:.4f}".format(tight_mean))
+    print("  poison  mean pairwise cosine   : {:.4f}".format(poison_mean))
+    print("  COHERENCE GAP                  : {:+.4f}   <-- difficulty dial".format(
+        poison_mean - tight_mean))
+    print("  mean records/seq  clean        : {:.1f}".format(mean(counts["clean"])))
+    print("  mean records/seq  poisoned     : {:.1f}".format(mean(counts["poisoned"])))
+    leak = abs(mean(counts["clean"]) - mean(counts["poisoned"]))
+    print("  record-count difference        : {:.1f}  {}".format(
+        leak, "OK (no count leak)" if leak < 0.5 else "LEAK -- poisoned sequences are longer"))
+    print("\n  Reference points from the synthetic curve (docs section 4d):")
+    print("    coherence gap ~0.16  -> graph AUROC 0.997")
+    print("    coherence gap ~0.125 -> graph AUROC 0.889")
+    print("    coherence gap ~0.10  -> graph AUROC 0.761")
+
+    with open(output_path / "generation_report.json", "w") as f:
+        json.dump(report, f, indent=2)
+    return report
+
+
 def main():
     parser = argparse.ArgumentParser(description="Generate LLM-powered memory poisoning dataset")
     parser.add_argument("--config", type=str, default="configs/default.yaml")
     parser.add_argument("--output", type=str, default="data/raw/llm_generated")
     parser.add_argument("--num-sequences", type=int, default=None, help="Override config num_sequences")
+    parser.add_argument("--interactions-per-sequence", type=int, default=None,
+                        help="Override config simulation.interactions_per_sequence. Lower values "
+                             "make a smoke test cheap, but note the injection schedule starts at "
+                             "t=50 and spreads up to injection_spread interactions, so anything "
+                             "below ~170 silently drops injections for the slower attack types.")
+    parser.add_argument("--provider", default="auto",
+                        choices=["auto", "openrouter", "anthropic", "google", "openai", "stub"],
+                        help="LLM provider. 'auto' tries each key in turn and verifies it with "
+                             "one live call. 'stub' runs the whole pipeline offline on canned "
+                             "text -- free, and useful for checking wiring, but the text is not "
+                             "suitable for the reported dataset.")
     parser.add_argument("--workers", type=int, default=4, help="Number of parallel worker threads for API mode (default: 4)")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--api-key", type=str, default=None, help="OpenRouter or API key (sets OPENROUTER_API_KEY)")
@@ -593,8 +838,10 @@ def main():
 
     if args.num_sequences:
         config["simulation"]["num_sequences"] = args.num_sequences
+    if args.interactions_per_sequence:
+        config["simulation"]["interactions_per_sequence"] = args.interactions_per_sequence
 
-    generator = LLMMemoryGenerator(config)
+    generator = LLMMemoryGenerator(config, provider=args.provider)
     rng = np.random.default_rng(args.seed)
 
     output_path = Path(args.output)
@@ -607,6 +854,10 @@ def main():
     num_poisoned = int(num_sequences * attack_ratio)
     num_clean = num_sequences - num_poisoned
     num_interactions = config["simulation"]["interactions_per_sequence"]
+    # Resume support: a sequence directory already holding this many snapshots is complete.
+    # This was hardcoded to 20, which is only correct at the default 200 interactions and
+    # snapshot_interval 10; with any override it silently regenerated finished sequences.
+    expected_snapshots = num_interactions // config["simulation"]["snapshot_interval"]
 
     metadata = []
     from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -614,8 +865,9 @@ def main():
     def run_clean_task(i):
         seq_id = f"clean_{i:04d}"
         seq_dir = output_path / seq_id
-        if seq_dir.exists() and len(list(seq_dir.glob("snapshot_*.npz"))) == 20:
-            return {"sequence_id": seq_id, "label": "clean", "attack_type": None, "num_snapshots": 20}
+        if seq_dir.exists() and len(list(seq_dir.glob("snapshot_*.npz"))) == expected_snapshots:
+            return {"sequence_id": seq_id, "label": "clean", "attack_type": None,
+                    "num_snapshots": expected_snapshots}
         seq_rng = np.random.default_rng(args.seed + i)
         n_snaps = generator.generate_sequence(num_interactions, None, seq_rng, seq_id, output_path)
         return {"sequence_id": seq_id, "label": "clean", "attack_type": None, "num_snapshots": n_snaps}
@@ -624,8 +876,9 @@ def main():
         attack_type = attack_types[i % len(attack_types)]
         seq_id = f"poisoned_{attack_type['name']}_{i:04d}"
         seq_dir = output_path / seq_id
-        if seq_dir.exists() and len(list(seq_dir.glob("snapshot_*.npz"))) == 20:
-            return {"sequence_id": seq_id, "label": "poisoned", "attack_type": attack_type['name'], "num_snapshots": 20}
+        if seq_dir.exists() and len(list(seq_dir.glob("snapshot_*.npz"))) == expected_snapshots:
+            return {"sequence_id": seq_id, "label": "poisoned", "attack_type": attack_type['name'],
+                    "num_snapshots": expected_snapshots}
         seq_rng = np.random.default_rng(args.seed + 10000 + i)
         n_snaps = generator.generate_sequence(num_interactions, attack_type, seq_rng, seq_id, output_path)
         return {"sequence_id": seq_id, "label": "poisoned", "attack_type": attack_type['name'], "num_snapshots": n_snaps}
@@ -665,6 +918,10 @@ def main():
 
     print(f"\nDone! {len(metadata)} sequences saved to {output_path}")
     print(f"  Splits: {len(splits['train'])} train, {len(splits['val'])} val, {len(splits['test'])} test")
+
+    separability_report(output_path, metadata,
+                        config["simulation"]["embedding_dim"],
+                        config["simulation"]["semantic_edge_threshold"])
 
 
 if __name__ == "__main__":
