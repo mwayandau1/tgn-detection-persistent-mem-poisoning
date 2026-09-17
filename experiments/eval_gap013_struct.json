@@ -1,0 +1,21 @@
+{
+  "graph_level": {
+    "auroc": 0.9628660109943532,
+    "f1_at_0.5": 0.8571428571428571,
+    "average_precision": 0.9571201849980534,
+    "fpr_at_tpr_0.9": 0.11229946524064172,
+    "best_f1": 0.8851351301408419,
+    "best_threshold": 0.004775262903422117
+  },
+  "node_level": {
+    "node_average_precision": 0.7904717074201435,
+    "node_auroc": 0.9837706822731146
+  },
+  "detection_latency": {
+    "mean_detection_latency": 3.4285714285714284,
+    "median_detection_latency": 3.0,
+    "std_detection_latency": 2.1285234893930487,
+    "min_detection_latency": 1,
+    "max_detection_latency": 8
+  }
+}

@@ -30,9 +30,15 @@ class Evaluator:
     """Evaluates the trained detector on test set."""
 
     def __init__(self, config: dict, checkpoint_path: str, data_dir: str, device: torch.device,
-                 model_cls: type = TGNDetector):
+                 model_cls: type = TGNDetector, batch_size: int = None,
+                 structural_features: bool = False):
         self.config = config
         self.device = device
+        self.structural_features = structural_features
+
+        # Must match how the checkpoint was trained; see train.py --structural-features.
+        if structural_features:
+            config["model"]["node_meta_dim"] = 3 + 4
 
         self.model = model_cls(config).to(self.device)
         self.model.load_state_dict(torch.load(checkpoint_path, map_location=self.device, weights_only=True))
@@ -40,10 +46,12 @@ class Evaluator:
 
         T = config["training"]["temporal_window"]
         embedding_dim = config["simulation"]["embedding_dim"]
-        self.test_dataset = MemoryTrajectoryDataset(data_dir, split="test", temporal_window=T, embedding_dim=embedding_dim)
+        self.test_dataset = MemoryTrajectoryDataset(data_dir, split="test", temporal_window=T,
+                                                     embedding_dim=embedding_dim,
+                                                     structural_features=structural_features)
         self.test_loader = DataLoader(
             self.test_dataset,
-            batch_size=config["training"]["batch_size"],
+            batch_size=batch_size if batch_size is not None else config["training"]["batch_size"],
             shuffle=False,
             collate_fn=collate_trajectories,
         )
@@ -163,8 +171,20 @@ class Evaluator:
                     edge_weights = torch.tensor(snap["edge_weights"], dtype=torch.float32)
                     edge_attr = edge_weights.unsqueeze(-1) if edge_weights.numel() > 0 else torch.zeros((0, 1), dtype=torch.float32)
                     num_nodes = snap["node_features"].shape[0]
+
+                    # This path builds graphs straight from the .npz, bypassing the
+                    # dataset, so it must reproduce the same feature width the model
+                    # was trained on.
+                    feats = snap["node_features"]
+                    if self.structural_features:
+                        feats = np.concatenate(
+                            [feats, MemoryTrajectoryDataset._structural_features(
+                                num_nodes, snap["edge_index"], snap["edge_weights"])],
+                            axis=1,
+                        )
+
                     g = Data(
-                        x=torch.tensor(snap["node_features"], dtype=torch.float32),
+                        x=torch.tensor(feats, dtype=torch.float32),
                         edge_index=torch.tensor(snap["edge_index"], dtype=torch.long),
                         edge_attr=edge_attr,
                         node_labels=torch.tensor(snap["node_labels"], dtype=torch.long),
@@ -205,6 +225,14 @@ def main():
     parser.add_argument("--model-cls", default="TGNDetector",
                          choices=["TGNDetector", "TGNDetectorMeanPool"],
                          help="Model class to instantiate before loading the checkpoint")
+    parser.add_argument("--batch-size", type=int, default=None,
+                         help="Override config['training']['batch_size'] for the eval DataLoader. "
+                              "Use 1 to avoid node_ids colliding across sequences batched together "
+                              "in the node-memory module (see Section 4.11).")
+    parser.add_argument("--structural-features", action="store_true",
+                         help="Must match the flag the checkpoint was trained with.")
+    parser.add_argument("--output", default=None,
+                         help="Override output path (default: <run-dir>/eval_results.json)")
     args = parser.parse_args()
 
     with open(args.config) as f:
@@ -220,7 +248,9 @@ def main():
         model_cls = TGNDetector
 
     checkpoint_path = Path(args.run_dir) / args.checkpoint
-    evaluator = Evaluator(config, str(checkpoint_path), args.data, device=device, model_cls=model_cls)
+    evaluator = Evaluator(config, str(checkpoint_path), args.data, device=device, model_cls=model_cls,
+                           batch_size=args.batch_size,
+                           structural_features=args.structural_features)
 
     print("Running graph-level evaluation...")
     graph_res = evaluator.evaluate_graph_level()
@@ -232,7 +262,7 @@ def main():
     results = {"graph_level": graph_res, "node_level": node_res, "detection_latency": latency_res}
     print(json.dumps(results, indent=2))
 
-    out_path = Path(args.run_dir) / "eval_results.json"
+    out_path = Path(args.output) if args.output else Path(args.run_dir) / "eval_results.json"
     with open(out_path, "w") as f:
         json.dump(results, f, indent=2)
     print(f"\nSaved to {out_path}")
