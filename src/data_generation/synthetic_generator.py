@@ -118,6 +118,12 @@ DIFFICULTY_PRESETS = {
     # Attacker only marginally tighter than ordinary same-topic traffic.
     "hard": {"session_length": 12, "retrieval_bias": 0.0,
              "topic_similarity": 0.59, "coherence": 0.63},    # gap 0.04
+    # The calibrated reporting point: the coherence gap at which the detector lands in the
+    # 0.89-0.96 graph-AUROC band. Named separately because the three presets above were
+    # fixed before the difficulty curve was measured and their names no longer track the
+    # measured difficulty ("hard" is in fact close to unlearnable). See REPRODUCE.md.
+    "benchmark": {"session_length": 12, "retrieval_bias": 0.0,
+                  "topic_similarity": 0.59, "coherence": 0.715},  # gap 0.125
     # Retained for reference: proved unlearnable (graph AUROC 0.475). Not a benchmark.
     "degenerate": {"session_length": 12, "retrieval_bias": 0.0,
                    "topic_similarity": 0.62, "coherence": 0.62},
