@@ -859,6 +859,13 @@ def main():
                              "make a smoke test cheap, but note the injection schedule starts at "
                              "t=50 and spreads up to injection_spread interactions, so anything "
                              "below ~170 silently drops injections for the slower attack types.")
+    parser.add_argument("--train-ratio", type=float, default=None,
+                        help="Override config['dataset']['train_ratio']. The 80/10/10 default "
+                             "leaves 30 test sequences at 300 total, of which ~12 are poisoned "
+                             "-- too few to break down by attack type or attack size. Shift "
+                             "mass to test when those breakdowns are the point.")
+    parser.add_argument("--val-ratio", type=float, default=None,
+                        help="Override config['dataset']['val_ratio']; test takes the remainder.")
     parser.add_argument("--injection-range", type=int, nargs=2, metavar=("MIN", "MAX"),
                         default=None,
                         help="Draw num_injected_records uniformly in [MIN, MAX] per poisoned "
@@ -986,6 +993,11 @@ def main():
 
     # Create train/val/test splits (required by MemoryTrajectoryDataset)
     ds_cfg = config.get("dataset", {"train_ratio": 0.8, "val_ratio": 0.1, "test_ratio": 0.1, "seed": 42})
+    if args.train_ratio is not None:
+        ds_cfg["train_ratio"] = args.train_ratio
+    if args.val_ratio is not None:
+        ds_cfg["val_ratio"] = args.val_ratio
+    ds_cfg["test_ratio"] = max(0.0, 1.0 - ds_cfg["train_ratio"] - ds_cfg["val_ratio"])
     indices = np.arange(len(metadata))
     rng.shuffle(indices)
     n_total = len(metadata)
