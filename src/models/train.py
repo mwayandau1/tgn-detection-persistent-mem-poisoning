@@ -110,13 +110,23 @@ class Trainer:
     def __init__(self, config: dict, data_dir: str, device: torch.device,
                  holdout_attack_type: Optional[str] = None,
                  noise_augment_prob: float = 0.0, noise_sigma_max: float = 0.1,
-                 model_cls: type = TGNDetector):
+                 model_cls: type = TGNDetector,
+                 structural_features: bool = False,
+                 select_by: str = "auroc"):
         self.config = config
         self.train_cfg = config["training"]
         self.data_dir = Path(data_dir)
         self.device = device
         self.noise_augment_prob = noise_augment_prob
         self.noise_sigma_max = noise_sigma_max
+        self.structural_features = structural_features
+        self.select_by = select_by
+
+        # The model's input width must match what the dataset emits.
+        if structural_features:
+            config["model"]["node_meta_dim"] = 3 + 4
+            print("Structural node features enabled (degree + edge-weight stats): "
+                  "node_meta_dim=7")
 
         self.model = model_cls(config).to(self.device)
         print(f"Model parameters: {sum(p.numel() for p in self.model.parameters()):,}")
@@ -128,13 +138,16 @@ class Trainer:
         self.holdout_ids = holdout_ids
 
         self.train_dataset = MemoryTrajectoryDataset(
-            data_dir, temporal_window=T, embedding_dim=embedding_dim, sequence_ids=train_ids)
+            data_dir, temporal_window=T, embedding_dim=embedding_dim, sequence_ids=train_ids,
+            structural_features=structural_features)
         self.val_dataset = MemoryTrajectoryDataset(
-            data_dir, temporal_window=T, embedding_dim=embedding_dim, sequence_ids=val_ids)
+            data_dir, temporal_window=T, embedding_dim=embedding_dim, sequence_ids=val_ids,
+            structural_features=structural_features)
         self.holdout_dataset = None
         if holdout_ids:
             self.holdout_dataset = MemoryTrajectoryDataset(
-                data_dir, temporal_window=T, embedding_dim=embedding_dim, sequence_ids=holdout_ids)
+                data_dir, temporal_window=T, embedding_dim=embedding_dim, sequence_ids=holdout_ids,
+                structural_features=structural_features)
 
         self.train_loader = DataLoader(
             self.train_dataset, batch_size=self.train_cfg["batch_size"],
@@ -245,7 +258,19 @@ class Trainer:
         alpha = self.train_cfg["loss_alpha"]
         beta = self.train_cfg["loss_beta"]
 
-        best_val_loss = float("inf")
+        # Checkpoint selection criterion.
+        #
+        # Selecting on validation LOSS silently picks the wrong model whenever loss and
+        # AUROC diverge, which they do on any benchmark hard enough for the model to
+        # start overfitting: on data/raw/synthetic_hard val loss rose monotonically
+        # (0.648 -> 0.966) while val AUROC climbed (0.335 -> 0.476), so loss-based
+        # selection saved epoch 1 — the worst checkpoint by the metric actually
+        # reported. Default to selecting on the reported metric; pass
+        # `--select-by loss` for the old behaviour.
+        select_by = getattr(self, "select_by", "auroc")
+        print(f"  Checkpoint selection: best validation {select_by}")
+        best_score = float("inf") if select_by == "loss" else -float("inf")
+        best_epoch = 0
         no_improve = 0
         history = {"train_loss": [], "val_loss": [], "val_auroc": [], "val_node_auroc": []}
 
@@ -265,8 +290,10 @@ class Trainer:
                   f"Train Loss={train_loss:.4f}, Val Loss={val_loss:.4f}, "
                   f"Val AUROC={val_auroc:.4f}, Val Node AUROC={val_node_auroc:.4f}")
 
-            if val_loss < best_val_loss:
-                best_val_loss = val_loss
+            improved = (val_loss < best_score) if select_by == "loss" else (val_auroc > best_score)
+            if improved:
+                best_score = val_loss if select_by == "loss" else val_auroc
+                best_epoch = epoch + 1
                 no_improve = 0
                 torch.save(self.model.state_dict(), Path(save_dir) / "phase2_best.pt")
             else:
@@ -276,9 +303,12 @@ class Trainer:
                     break
 
         torch.save(self.model.state_dict(), Path(save_dir) / "phase2_final.pt")
+        history["selection"] = {"criterion": select_by, "best_epoch": best_epoch,
+                                "best_score": best_score}
         with open(Path(save_dir) / "training_history.json", "w") as f:
             json.dump(history, f, indent=2)
 
+        print(f"  Best checkpoint: epoch {best_epoch} (val {select_by}={best_score:.4f})")
         print(f"  Models saved to {save_dir}")
 
     def _train_epoch(self, alpha: float, beta: float, epoch: int, epochs: int) -> float:
@@ -388,11 +418,26 @@ def main():
                          help="Probability that a given Phase 2 training batch gets embedding noise.")
     parser.add_argument("--noise-sigma-max", type=float, default=0.15,
                          help="Max sigma for the training-time embedding noise (sampled uniformly per batch).")
+    parser.add_argument("--epochs-supervised", type=int, default=None,
+                         help="Override config['training']['epochs_supervised']. The default of 10 "
+                              "is too few on harder benchmarks, where validation AUROC is still "
+                              "climbing when training stops.")
+    parser.add_argument("--structural-features", action="store_true",
+                         help="Append per-node degree and edge-weight statistics to the node "
+                              "features. GATConv's softmax-normalised attention is a convex "
+                              "combination and so cannot count neighbours; this supplies the "
+                              "local-density information its aggregator cannot derive.")
+    parser.add_argument("--select-by", choices=["auroc", "loss"], default="auroc",
+                         help="Criterion for saving phase2_best.pt. Validation loss and AUROC "
+                              "diverge once the model starts overfitting, so loss-based "
+                              "selection can save the worst checkpoint by the reported metric.")
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
     with open(args.config) as f:
         config = yaml.safe_load(f)
+    if args.epochs_supervised is not None:
+        config["training"]["epochs_supervised"] = args.epochs_supervised
     set_seed(config.get("dataset", {}).get("seed", args.seed))
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -406,6 +451,8 @@ def main():
         holdout_attack_type=args.holdout_attack_type,
         noise_augment_prob=args.noise_augment_prob,
         noise_sigma_max=args.noise_sigma_max,
+        structural_features=args.structural_features,
+        select_by=args.select_by,
     )
 
     if not args.skip_phase1:

@@ -16,6 +16,22 @@ from typing import List, Tuple, Optional
 _DEFAULT_EMBEDDING_DIM = 384
 _DEFAULT_META_FEATURES = 3  # recency, retrieval_freq, retrieval_recency
 
+# Optional per-node structural features: degree (two scalings), and the mean and max
+# weight of a node's incident edges.
+#
+# These exist because GATConv normalises its attention coefficients with a softmax over
+# each node's neighbourhood, so its aggregation is a convex combination — a weighted
+# average. Averaging is largely degree-invariant, which is the standard expressiveness
+# limitation that motivates sum aggregation (GIN): a node with 40 neighbours and one
+# with 8 both yield an average, so the encoder cannot readily *count* neighbours.
+#
+# On a benchmark whose only signal is local density — poisoned records sitting in a
+# tighter neighbourhood than a benign session — that blindness is fatal. Measured on
+# data/raw/synthetic_hard: logistic regression on explicit degree features reaches
+# AUROC 0.89 while the TGN reaches 0.56. Supplying degree and edge-weight statistics
+# as node features hands the encoder what its aggregator cannot derive for itself.
+_STRUCTURAL_FEATURES = 4
+
 
 class MemoryTrajectoryDataset(Dataset):
     """
@@ -25,10 +41,14 @@ class MemoryTrajectoryDataset(Dataset):
 
     def __init__(self, data_dir: str, split: str = "train", temporal_window: int = 10,
                  embedding_dim: int = _DEFAULT_EMBEDDING_DIM,
-                 sequence_ids: Optional[List[str]] = None):
+                 sequence_ids: Optional[List[str]] = None,
+                 structural_features: bool = False):
         self.data_dir = Path(data_dir)
         self.temporal_window = temporal_window
+        self.structural_features = structural_features
         self.feature_dim = embedding_dim + _DEFAULT_META_FEATURES
+        if structural_features:
+            self.feature_dim += _STRUCTURAL_FEATURES
 
         # Load metadata
         with open(self.data_dir / "metadata.json") as f:
@@ -92,7 +112,15 @@ class MemoryTrajectoryDataset(Dataset):
         """Load a single graph snapshot as a PyG Data object."""
         snap = np.load(path)
 
-        node_features = torch.tensor(snap["node_features"], dtype=torch.float32)
+        raw_features = snap["node_features"]
+        if self.structural_features:
+            raw_features = np.concatenate(
+                [raw_features, self._structural_features(
+                    raw_features.shape[0], snap["edge_index"], snap["edge_weights"])],
+                axis=1,
+            )
+
+        node_features = torch.tensor(raw_features, dtype=torch.float32)
         edge_index = torch.tensor(snap["edge_index"], dtype=torch.long)
         edge_weights = torch.tensor(snap["edge_weights"], dtype=torch.float32)
         node_labels = torch.tensor(snap["node_labels"], dtype=torch.long)
@@ -120,6 +148,41 @@ class MemoryTrajectoryDataset(Dataset):
             node_ids=node_ids,
         )
         return data
+
+    @staticmethod
+    def _structural_features(num_nodes: int, edge_index: np.ndarray,
+                             edge_weights: np.ndarray) -> np.ndarray:
+        """Per-node degree and incident-edge-weight statistics.
+
+        Columns: [degree/50, degree/(n-1), mean incident weight, max incident weight].
+        The two degree scalings mirror the existing metadata columns' convention (a
+        fixed divisor) while also giving a graph-size-invariant version, since snapshots
+        grow over time.
+        """
+        out = np.zeros((num_nodes, _STRUCTURAL_FEATURES), dtype=np.float64)
+        if edge_index.size == 0 or num_nodes == 0:
+            return out
+
+        src = np.asarray(edge_index[0], dtype=np.int64)
+        w = np.asarray(edge_weights, dtype=np.float64).reshape(-1)
+        if w.size != src.size:  # defensive: weights missing or mismatched
+            w = np.ones_like(src, dtype=np.float64)
+
+        deg = np.zeros(num_nodes, dtype=np.float64)
+        np.add.at(deg, src, 1.0)
+        wsum = np.zeros(num_nodes, dtype=np.float64)
+        np.add.at(wsum, src, w)
+        wmax = np.zeros(num_nodes, dtype=np.float64)
+        np.maximum.at(wmax, src, w)
+
+        with np.errstate(invalid="ignore", divide="ignore"):
+            wmean = np.where(deg > 0, wsum / np.maximum(deg, 1.0), 0.0)
+
+        out[:, 0] = deg / 50.0
+        out[:, 1] = deg / max(num_nodes - 1, 1)
+        out[:, 2] = wmean
+        out[:, 3] = wmax
+        return out
 
     def _empty_graph(self) -> Data:
         """Return an empty graph as padding."""

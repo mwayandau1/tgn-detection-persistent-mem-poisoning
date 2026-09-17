@@ -138,7 +138,10 @@ class TGNDetector(nn.Module):
         super().__init__()
         model_cfg = config["model"]
 
-        input_dim = model_cfg["node_feature_dim"] + 3
+        # +3 metadata columns by default (recency, retrieval freq, retrieval recency).
+        # Raise `node_meta_dim` when the dataset also supplies structural node features
+        # (see src/data_generation/dataset.py::_structural_features).
+        input_dim = model_cfg["node_feature_dim"] + model_cfg.get("node_meta_dim", 3)
         memory_dim = model_cfg["node_memory_dim"]
         gat_hidden = model_cfg["gat_hidden_dim"]
         gat_heads = model_cfg["gat_heads"]
