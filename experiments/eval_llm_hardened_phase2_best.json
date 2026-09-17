@@ -1,0 +1,81 @@
+{
+  "graph_level": {
+    "auroc": 1.0,
+    "f1_at_0.5": 0.98698224852071,
+    "average_precision": 1.0,
+    "fpr_at_tpr_0.9": 0.0,
+    "best_f1": 0.999999995,
+    "best_threshold": 0.004490123596042395
+  },
+  "node_level": {
+    "node_average_precision": 0.8051594589910309,
+    "node_auroc": 0.9955217115613959
+  },
+  "detection_latency": {
+    "mean_detection_latency": 1.4545454545454546,
+    "median_detection_latency": 1.0,
+    "std_detection_latency": 1.2694763676153582,
+    "min_detection_latency": 0,
+    "max_detection_latency": 4
+  },
+  "by_attack_type": {
+    "direct_write": {
+      "n_sequences": 15,
+      "n_windows": 1056,
+      "graph_auroc": 0.9998688180506361,
+      "graph_average_precision": 0.9991809991809991,
+      "node_auroc": 0.9983576996290178,
+      "node_average_precision": 0.8246689703613349
+    },
+    "incremental_slow": {
+      "n_sequences": 13,
+      "n_windows": 1034,
+      "graph_auroc": 1.0,
+      "graph_average_precision": 1.0,
+      "node_auroc": 0.9984653288125841,
+      "node_average_precision": 0.8341098145595579
+    },
+    "minja_query_only": {
+      "n_sequences": 16,
+      "n_windows": 1067,
+      "graph_auroc": 1.0,
+      "graph_average_precision": 0.9999999999999999,
+      "node_auroc": 0.9976020380776403,
+      "node_average_precision": 0.78265210803157
+    }
+  },
+  "by_attack_size": {
+    "1-8": {
+      "n_sequences": 13,
+      "n_windows": 1034,
+      "graph_auroc": 1.0,
+      "graph_average_precision": 0.9999999999999998,
+      "node_auroc": 0.9982392162385754,
+      "node_average_precision": 0.7166390993194359
+    },
+    "9-12": {
+      "n_sequences": 11,
+      "n_windows": 1012,
+      "graph_auroc": 1.0,
+      "graph_average_precision": 1.0,
+      "node_auroc": 0.9985418619647044,
+      "node_average_precision": 0.7697469300190153
+    },
+    "13-16": {
+      "n_sequences": 9,
+      "n_windows": 990,
+      "graph_auroc": 1.0,
+      "graph_average_precision": 0.9999999999999999,
+      "node_auroc": 0.9988957060942781,
+      "node_average_precision": 0.8624341065409831
+    },
+    "17-24": {
+      "n_sequences": 11,
+      "n_windows": 1012,
+      "graph_auroc": 1.0,
+      "graph_average_precision": 1.0,
+      "node_auroc": 0.9987927694872505,
+      "node_average_precision": 0.8805963678849917
+    }
+  }
+}
