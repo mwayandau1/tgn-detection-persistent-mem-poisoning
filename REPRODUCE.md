@@ -4,9 +4,14 @@ Every number reported for the hardened benchmark comes from the three commands b
 All of them run on CPU or a single small GPU; none of them call an external API.
 
 Seeds are fixed at 42 (`configs/default.yaml -> dataset.seed`, and `--seed` on both CLIs).
-Dataset generation is fully deterministic. Training is deterministic on CPU; on GPU the
-non-deterministic scatter kernels used by PyTorch Geometric mean you should expect results
-that are close but not bit-identical.
+Dataset generation is fully deterministic. Training and evaluation are deterministic on CPU;
+on GPU the non-deterministic scatter kernels used by PyTorch Geometric mean results are close
+but not bit-identical.
+
+Measured: re-running evaluation on the *same* checkpoint and the *same* data in a fresh
+process moved graph AUROC by +0.007, graph AP by +0.004 and node AP by +0.014. Treat
+differences below about 0.02 as noise rather than signal, and do not report more than two
+decimal places for a single run.
 
 ## 1. Generate the benchmark dataset
 

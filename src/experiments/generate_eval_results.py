@@ -132,6 +132,103 @@ class Evaluator:
         return results
 
     @torch.no_grad()
+    def _score_sequences(self, sequence_ids):
+        """Graph and node scores for one set of sequences, in a single pass."""
+        T = self.config["training"]["temporal_window"]
+        ds = MemoryTrajectoryDataset(
+            self.test_dataset.data_dir, temporal_window=T,
+            embedding_dim=self.config["simulation"]["embedding_dim"],
+            structural_features=self.structural_features,
+            sequence_ids=list(sequence_ids))
+        loader = DataLoader(ds, batch_size=self.test_loader.batch_size, shuffle=False,
+                            collate_fn=collate_trajectories)
+        self.model.reset_memory()
+        gs, gl, ns, nl = [], [], [], []
+        for batch in loader:
+            graphs = [g.to(self.device) for g in batch["graphs"]]
+            graph_scores, node_scores = self.model(graphs)
+            gs.extend(graph_scores.cpu().numpy())
+            gl.extend(batch["graph_labels"].numpy())
+            last_graph = graphs[-1]
+            if hasattr(last_graph, "node_labels"):
+                nlab = last_graph.node_labels.cpu().numpy()
+                nsc = node_scores.cpu().numpy()
+                m = min(len(nsc), len(nlab))
+                ns.extend(nsc[:m])
+                nl.extend(nlab[:m])
+            if self.device.type == "cuda":
+                torch.cuda.empty_cache()
+        return (np.array(gs), np.array(gl), np.array(ns), np.array(nl))
+
+    @staticmethod
+    def _pair_metrics(scores, labels, node_scores, node_labels, n_seqs):
+        both = len(np.unique(labels)) > 1
+        out = {
+            "n_sequences": int(n_seqs),
+            "n_windows": int(len(labels)),
+            "graph_auroc": float(roc_auc_score(labels, scores)) if both else None,
+            "graph_average_precision": (float(average_precision_score(labels, scores))
+                                        if both else None),
+        }
+        if len(node_labels) and len(np.unique(node_labels)) > 1:
+            out["node_auroc"] = float(roc_auc_score(node_labels, node_scores))
+            out["node_average_precision"] = float(
+                average_precision_score(node_labels, node_scores))
+        else:
+            out["node_auroc"] = None
+            out["node_average_precision"] = None
+        return out
+
+    def evaluate_breakdowns(self) -> dict:
+        """Detection broken down by attack type and by attack size.
+
+        A single pooled AUROC hides large differences between attack types. On live LLM data
+        the coherence gap runs from 0.115 for `direct_write` to 0.322 for `incremental_slow`,
+        a threefold spread in how exposed the attack is, so the pooled figure is dominated by
+        whichever type is easiest to spot and a reader cannot see that.
+
+        Each subset is scored against the SAME clean sequences, which are the shared negative
+        set. Subset AUROCs are therefore comparable to one another, but each rests on fewer
+        poisoned sequences than the pooled number and carries a correspondingly wider error
+        bar.
+        """
+        meta = self.test_dataset.metadata
+        test_ids = list(self.test_dataset.sequence_ids)
+        clean_ids = [i for i in test_ids if meta[i].get("label") == "clean"]
+        poisoned = [i for i in test_ids if meta[i].get("label") == "poisoned"]
+
+        if not clean_ids or not poisoned:
+            return {"note": "breakdown needs both clean and poisoned sequences in the test split"}
+
+        groups = {"by_attack_type": {}, "by_attack_size": {}}
+
+        types = sorted({meta[i].get("attack_type") for i in poisoned} - {None})
+        for t in types:
+            ids = [i for i in poisoned if meta[i].get("attack_type") == t]
+            g, gl, n, nl = self._score_sequences(clean_ids + ids)
+            groups["by_attack_type"][t] = self._pair_metrics(g, gl, n, nl, len(ids))
+
+        # Buckets match the sweep in docs/benchmark_difficulty_analysis.md section 4e.6, where
+        # the coherence gap runs ~0.06 at 5 injections and ~0.28 at 20.
+        buckets = [(1, 8), (9, 12), (13, 16), (17, 24)]
+        have_counts = any(meta[i].get("num_injected") for i in poisoned)
+        if have_counts:
+            for lo, hi in buckets:
+                ids = [i for i in poisoned
+                       if lo <= int(meta[i].get("num_injected") or 0) <= hi]
+                if not ids:
+                    continue
+                g, gl, n, nl = self._score_sequences(clean_ids + ids)
+                groups["by_attack_size"][f"{lo}-{hi}"] = self._pair_metrics(
+                    g, gl, n, nl, len(ids))
+        else:
+            groups["by_attack_size"] = {
+                "note": "metadata.json has no num_injected field; regenerate with "
+                        "--injection-range to get a difficulty sweep out of one dataset"}
+
+        return groups
+
+    @torch.no_grad()
     def evaluate_detection_latency(self) -> dict:
         data_dir = Path(self.test_dataset.data_dir)
         with open(data_dir / "metadata.json") as f:
@@ -259,7 +356,11 @@ def main():
     print("Running detection-latency evaluation...")
     latency_res = evaluator.evaluate_detection_latency()
 
-    results = {"graph_level": graph_res, "node_level": node_res, "detection_latency": latency_res}
+    print("Computing per-attack-type and per-attack-size breakdowns...")
+    breakdowns = evaluator.evaluate_breakdowns()
+
+    results = {"graph_level": graph_res, "node_level": node_res,
+               "detection_latency": latency_res, **breakdowns}
     print(json.dumps(results, indent=2))
 
     out_path = Path(args.output) if args.output else Path(args.run_dir) / "eval_results.json"
