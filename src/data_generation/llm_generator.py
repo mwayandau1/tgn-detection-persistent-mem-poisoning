@@ -859,6 +859,15 @@ def main():
                              "make a smoke test cheap, but note the injection schedule starts at "
                              "t=50 and spreads up to injection_spread interactions, so anything "
                              "below ~170 silently drops injections for the slower attack types.")
+    parser.add_argument("--injection-range", type=int, nargs=2, metavar=("MIN", "MAX"),
+                        default=None,
+                        help="Draw num_injected_records uniformly in [MIN, MAX] per poisoned "
+                             "sequence instead of using the fixed per-attack-type value. Attack "
+                             "size is the strongest difficulty lever measured (coherence gap "
+                             "~0.06 at 5 injections, ~0.28 at 20), so this turns one dataset "
+                             "into a difficulty sweep: train once, then report detection binned "
+                             "by attack size. The drawn count is recorded per sequence in "
+                             "metadata.json as num_injected.")
     parser.add_argument("--coherence", type=float, default=None,
                         help="Override every attack type's semantic_coherence. Mirrors the "
                              "synthetic generator's flag of the same name. Lower values spread "
@@ -923,21 +932,39 @@ def main():
         seq_dir = output_path / seq_id
         if seq_dir.exists() and len(list(seq_dir.glob("snapshot_*.npz"))) == expected_snapshots:
             return {"sequence_id": seq_id, "label": "clean", "attack_type": None,
-                    "num_snapshots": expected_snapshots}
+                    "num_snapshots": expected_snapshots, "num_injected": 0}
         seq_rng = np.random.default_rng(args.seed + i)
         n_snaps = generator.generate_sequence(num_interactions, None, seq_rng, seq_id, output_path)
-        return {"sequence_id": seq_id, "label": "clean", "attack_type": None, "num_snapshots": n_snaps}
+        return {"sequence_id": seq_id, "label": "clean", "attack_type": None,
+                "num_snapshots": n_snaps, "num_injected": 0}
 
     def run_poisoned_task(i):
         attack_type = attack_types[i % len(attack_types)]
         seq_id = f"poisoned_{attack_type['name']}_{i:04d}"
         seq_dir = output_path / seq_id
+        seq_rng = np.random.default_rng(args.seed + 10000 + i)
+
+        # Attack size is the strongest difficulty lever available: benign cluster tightness
+        # falls steeply with cluster size while the planted cluster stays near 0.86, so the
+        # coherence gap runs ~0.06 at 5 injections and ~0.28 at 20. Drawing it per sequence
+        # turns a single dataset into a difficulty sweep — train once, then report detection
+        # binned by attack size, rather than tuning one number and having to justify it.
+        cfg_here = dict(attack_type)
+        if args.injection_range:
+            lo, hi = args.injection_range
+            cfg_here["num_injected_records"] = int(seq_rng.integers(lo, hi + 1))
+            # Slots are sampled without replacement, so the window must be wide enough.
+            cfg_here["injection_spread"] = max(cfg_here["injection_spread"],
+                                               cfg_here["num_injected_records"]) \
+                if cfg_here["injection_spread"] > 1 else 1
+        n_injected = cfg_here["num_injected_records"]
+
         if seq_dir.exists() and len(list(seq_dir.glob("snapshot_*.npz"))) == expected_snapshots:
             return {"sequence_id": seq_id, "label": "poisoned", "attack_type": attack_type['name'],
-                    "num_snapshots": expected_snapshots}
-        seq_rng = np.random.default_rng(args.seed + 10000 + i)
-        n_snaps = generator.generate_sequence(num_interactions, attack_type, seq_rng, seq_id, output_path)
-        return {"sequence_id": seq_id, "label": "poisoned", "attack_type": attack_type['name'], "num_snapshots": n_snaps}
+                    "num_snapshots": expected_snapshots, "num_injected": n_injected}
+        n_snaps = generator.generate_sequence(num_interactions, cfg_here, seq_rng, seq_id, output_path)
+        return {"sequence_id": seq_id, "label": "poisoned", "attack_type": attack_type['name'],
+                "num_snapshots": n_snaps, "num_injected": n_injected}
 
     max_workers = args.workers
 
