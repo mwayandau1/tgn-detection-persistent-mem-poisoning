@@ -95,10 +95,18 @@ class ScaleAwarePool(nn.Module):
     and similarity — scores 0.995 on synthetic_gap0125 where the attention-pooled model scores
     0.889. Every one of those features is a magnitude.
 
-    This adds, alongside the attention readout: an unnormalised sum, an element-wise max, and
-    log node count. Sum and count restore the ability to distinguish twenty tight records from
-    five; max gives a route for a single strongly-anomalous node to reach the graph head
-    without being averaged down.
+    This adds, alongside the attention readout: an unweighted mean, an element-wise max, and
+    log node count. The mean and count together restore what a convex combination cannot
+    express — the graph's total mass is recoverable as mean x count — while max gives a single
+    strongly-anomalous node a route to the graph head without being averaged down.
+
+    An earlier version used a raw unnormalised sum in place of the mean and scored *worse*
+    than plain attention pooling (0.814 against 0.904 validation AUROC on synthetic_gap0125).
+    Measured on a trained checkpoint, the sum component's L2 norm was 65x the attention
+    component's and grew with node count, so it dominated the GRU input and drowned the other
+    three. Magnitude information has to be supplied on a comparable scale to be usable, which
+    is the same reasoning behind degree-scalers in Principal Neighbourhood Aggregation
+    (Corso et al., 2020).
     """
 
     def __init__(self, input_dim: int, hidden_dim: int = 64):
@@ -120,19 +128,20 @@ class ScaleAwarePool(nn.Module):
         attn_out = x.new_zeros(num_graphs, x.size(-1)).index_add(
             0, batch_idx, x * weights.unsqueeze(-1))
 
+        counts = x.new_zeros(num_graphs).index_add(
+            0, batch_idx, x.new_ones(x.size(0)))
         sum_out = x.new_zeros(num_graphs, x.size(-1)).index_add(0, batch_idx, x)
+        mean_out = sum_out / counts.clamp_min(1.0).unsqueeze(-1)
 
         max_out = x.new_full((num_graphs, x.size(-1)), float("-inf"))
         max_out = max_out.index_reduce(0, batch_idx, x, "amax", include_self=True)
         max_out = torch.where(torch.isinf(max_out), torch.zeros_like(max_out), max_out)
 
-        counts = x.new_zeros(num_graphs).index_add(
-            0, batch_idx, x.new_ones(x.size(0)))
         # log1p keeps the scale comparable to the learned embedding dimensions; the raw count
         # runs to several hundred and would otherwise dominate the GRU input.
         log_count = torch.log1p(counts).unsqueeze(-1)
 
-        return torch.cat([attn_out, sum_out, max_out, log_count], dim=-1)
+        return torch.cat([attn_out, mean_out, max_out, log_count], dim=-1)
 
 
 class TemporalAggregator(nn.Module):
