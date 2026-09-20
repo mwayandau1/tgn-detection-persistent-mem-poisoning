@@ -113,7 +113,8 @@ class Trainer:
                  model_cls: type = TGNDetector,
                  structural_features: bool = False,
                  select_by: str = "auroc",
-                 scale_readout: bool = False):
+                 scale_readout: bool = False,
+                 readout: Optional[str] = None):
         self.config = config
         self.train_cfg = config["training"]
         self.data_dir = Path(data_dir)
@@ -125,8 +126,13 @@ class Trainer:
         # Must be set before the model is constructed: it changes the pooled dimension
         # the temporal GRU is built to accept.
         config["model"]["scale_readout"] = bool(scale_readout)
+        if readout:
+            config["model"]["readout"] = readout
         if scale_readout:
             print("  Scale-aware readout: attention + sum + max + log node count")
+        if readout == "gated":
+            print("  Gated scale readout: attention + zero-initialised mean/max/count gates "
+                  "(identical to attention pooling at initialisation)")
 
         # The model's input width must match what the dataset emits.
         if structural_features:
@@ -445,6 +451,17 @@ def main():
                               "a dense region -- which is what the attack is. A logistic "
                               "regression on nine magnitude features scores 0.995 on "
                               "synthetic_gap0125 where this model scores 0.889.")
+    parser.add_argument("--readout", choices=["attention", "scale", "gated"], default=None,
+                        help="Graph readout. 'attention' is the published baseline. 'scale' is "
+                             "the concatenating variant --scale-readout selects, which triples "
+                             "the GRU input width and so carries 98,688 more parameters than "
+                             "the baseline; it scored 0.626 against the baseline's 0.889 on "
+                             "synthetic_gap0125 over a full 40-epoch budget with early stopping "
+                             "disabled, which is a capacity failure rather than a verdict on "
+                             "magnitude information. 'gated' adds the same mean, max and count "
+                             "readouts as residual branches behind zero-initialised scalar "
+                             "gates: +771 parameters, and bit-identical to attention pooling at "
+                             "initialisation, so the comparison isolates the information.")
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
@@ -468,6 +485,7 @@ def main():
         structural_features=args.structural_features,
         select_by=args.select_by,
         scale_readout=args.scale_readout,
+        readout=args.readout,
     )
 
     if not args.skip_phase1:

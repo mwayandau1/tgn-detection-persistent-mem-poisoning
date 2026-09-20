@@ -144,6 +144,86 @@ class ScaleAwarePool(nn.Module):
         return torch.cat([attn_out, mean_out, max_out, log_count], dim=-1)
 
 
+class GatedScalePool(nn.Module):
+    """Attention pooling with magnitude branches added through zero-initialised gates.
+
+    `ScaleAwarePool` above concatenates four readouts and returns `input_dim * 3 + 1`
+    features. Two consequences followed, and both were mistakes:
+
+      * `pooled_dim` feeds the temporal GRU, so that variant's GRU input width TRIPLED and it
+        carried substantially more parameters than the baseline it was compared against. On
+        synthetic_gap0125 it reached train loss 0.16 while validation AUROC stayed near chance,
+        finishing at 0.626 against the baseline's 0.889 -- measured with early stopping
+        disabled over the full 40-epoch budget, so a truncated-training explanation is ruled
+        out. That is a capacity failure, not evidence that magnitude information is useless.
+      * At initialisation the model was not "the baseline plus something", it was a different
+        model, with no path back to baseline behaviour if the extra readouts proved unhelpful.
+
+    This version keeps the output width at `input_dim`, leaving the GRU untouched and the
+    parameter count matched to the baseline to within three scalars. The magnitude readouts
+    enter as residual branches, each behind its own scalar gate initialised to zero:
+
+        out = attn + g_mean * LN(mean) + g_max * LN(max) + g_count * proj(log1p(count))
+
+    Every gate starts at exactly 0, so the module computes precisely what `AttentionPool`
+    computes and the variant *begins* as the baseline. A branch contributes only insofar as
+    training moves its gate off zero, which makes this a strict test of whether magnitude
+    information helps: it can no longer lose on capacity or on initialisation. This is the
+    ReZero construction (Bachlechner et al., 2021), used there so deep residual stacks train
+    without warmup and used here for the same reason -- an added branch must not perturb the
+    function at step 0.
+
+    The LayerNorms address why the original raw-sum version failed: measured on a trained
+    checkpoint, the sum's L2 norm was 65x the attention output's and grew with node count, so
+    it drowned the other branches. Normalising each branch puts them on a comparable scale
+    before the gate decides how much to admit -- the same reasoning behind the degree-scalers
+    in Principal Neighbourhood Aggregation (Corso et al., 2020).
+
+    The learned gates are reportable in their own right: a gate that stays near zero after
+    training is direct evidence the readout had nothing to contribute, which is a cleaner
+    statement than an AUROC difference.
+    """
+
+    def __init__(self, input_dim: int, hidden_dim: int = 64):
+        super().__init__()
+        self.attn = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.Tanh(),
+            nn.Linear(hidden_dim, 1),
+        )
+        self.norm_mean = nn.LayerNorm(input_dim)
+        self.norm_max = nn.LayerNorm(input_dim)
+        self.count_proj = nn.Linear(1, input_dim)
+        # One scalar per branch, all zero: exactly AttentionPool at step 0.
+        self.gate = nn.Parameter(torch.zeros(3))
+        self.out_dim = input_dim
+
+    def forward(self, x: torch.Tensor, batch_idx: torch.Tensor,
+                num_graphs: Optional[int] = None) -> torch.Tensor:
+        if num_graphs is None:
+            num_graphs = int(batch_idx.max().item()) + 1 if batch_idx.numel() > 0 else 0
+
+        scores = self.attn(x).squeeze(-1)
+        weights = scatter_softmax(scores, batch_idx)
+        attn_out = x.new_zeros(num_graphs, x.size(-1)).index_add(
+            0, batch_idx, x * weights.unsqueeze(-1))
+
+        counts = x.new_zeros(num_graphs).index_add(0, batch_idx, x.new_ones(x.size(0)))
+        sum_out = x.new_zeros(num_graphs, x.size(-1)).index_add(0, batch_idx, x)
+        mean_out = sum_out / counts.clamp_min(1.0).unsqueeze(-1)
+
+        max_out = x.new_full((num_graphs, x.size(-1)), float("-inf"))
+        max_out = max_out.index_reduce(0, batch_idx, x, "amax", include_self=True)
+        max_out = torch.where(torch.isinf(max_out), torch.zeros_like(max_out), max_out)
+
+        count_out = self.count_proj(torch.log1p(counts).unsqueeze(-1))
+
+        return (attn_out
+                + self.gate[0] * self.norm_mean(mean_out)
+                + self.gate[1] * self.norm_max(max_out)
+                + self.gate[2] * count_out)
+
+
 class TemporalAggregator(nn.Module):
     """GRU that reads sequence of graph-level embeddings over T timesteps."""
 
@@ -221,14 +301,24 @@ class TGNDetector(nn.Module):
             dropout=dropout,
             edge_dim=1,
         )
-        # Opt-in so the change stays a clean ablation against the published numbers.
-        self.scale_readout = bool(model_cfg.get("scale_readout", False))
-        if self.scale_readout:
+        # Opt-in so each change stays a clean ablation against the published numbers.
+        # `scale_readout: true` is kept as an alias for readout "scale" so the checkpoints
+        # already on disk still load and their numbers stay reproducible from this tree.
+        readout = model_cfg.get("readout", "scale" if model_cfg.get("scale_readout") else "attention")
+        self.readout = readout
+        self.scale_readout = readout == "scale"
+        if readout == "scale":
             self.attn_pool = ScaleAwarePool(input_dim=gat_hidden, hidden_dim=mlp_hidden)
             pooled_dim = self.attn_pool.out_dim
-        else:
+        elif readout == "gated":
+            self.attn_pool = GatedScalePool(input_dim=gat_hidden, hidden_dim=mlp_hidden)
+            pooled_dim = self.attn_pool.out_dim
+        elif readout == "attention":
             self.attn_pool = AttentionPool(input_dim=gat_hidden, hidden_dim=mlp_hidden)
             pooled_dim = gat_hidden
+        else:
+            raise ValueError(f"unknown readout {readout!r}; "
+                             f"expected 'attention', 'scale' or 'gated'")
         self.temporal_aggregator = TemporalAggregator(
             input_dim=pooled_dim,
             hidden_dim=gru_hidden,
