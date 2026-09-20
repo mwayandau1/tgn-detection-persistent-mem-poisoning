@@ -136,33 +136,83 @@ class AgentPoisonSequenceBuilder:
             out.extend(int(i) for i in self.rng.choice(pool, size=take, replace=False))
         return out[:n]
 
-    def _poison_indices(self, k: int) -> List[int]:
-        """The attacker floods one narrow neighbourhood with genuine entries."""
-        target = int(self.rng.integers(0, len(self.kb)))
-        pool = self.neighbours[target, :self.poison_pool]
-        replace = k > len(pool)
-        return [int(i) for i in self.rng.choice(pool, size=k, replace=replace)]
+    def _poison_indices(self, k: int, drift_step: int = 0) -> List[int]:
+        """Entries drawn from one narrow neighbourhood.
+
+        With drift_step = 0 the neighbourhood is fixed: this is the attacker, whose planted
+        cluster has a single centre. With drift_step > 0 the neighbourhood re-centres on the
+        last entry drawn every drift_step records, so the cluster is equally tight at any
+        instant but wanders -- which is what a benign user pursuing one deepening interest
+        looks like.
+        """
+        cur = int(self.rng.integers(0, len(self.kb)))
+        if drift_step <= 0:
+            pool = self.neighbours[cur, :self.poison_pool]
+            return [int(i) for i in self.rng.choice(pool, size=k, replace=k > len(pool))]
+        out: List[int] = []
+        while len(out) < k:
+            pool = self.neighbours[cur, :self.poison_pool]
+            take = min(drift_step, k - len(out), len(pool))
+            picked = [int(i) for i in self.rng.choice(pool, size=take, replace=False)]
+            out.extend(picked)
+            cur = picked[-1]
+        return out[:k]
+
+    def _place(self, idxs: List[int], rng: np.random.Generator, n_interactions: int,
+               k: int, spread: Optional[int], drift_step: int) -> np.ndarray:
+        """Overwrite k slots with entries from a narrow neighbourhood; return the slot indices.
+
+        Placement REPLACES benign interactions rather than appending, so the record count
+        cannot leak the label -- appending is what made the original benchmark solvable by
+        counting alone (section 2.3 of the analysis document).
+
+        `spread` is the window of interactions the k records land in. A small spread is a
+        burst (the attack); a spread covering the whole sequence is the same cluster arriving
+        gradually (the matched benign control). Burstiness is therefore the only thing that
+        separates them when drift_step and k are also matched.
+        """
+        if spread is None:
+            start, width = 0, n_interactions
+        else:
+            start = int(rng.integers(40, max(41, n_interactions - k - 10)))
+            width = min(n_interactions - start, max(spread, k))
+        slots = start + rng.choice(width, size=min(k, width), replace=False)
+        picks = self._poison_indices(len(slots), drift_step=drift_step)
+        for slot, p in zip(sorted(slots), picks):
+            idxs[int(slot)] = p
+        return np.sort(slots).astype(int)
 
     def build_sequence(self, n_interactions: int, n_injected: int,
-                       seq_id: str, out_dir: Path, rng: np.random.Generator) -> Dict:
+                       seq_id: str, out_dir: Path, rng: np.random.Generator,
+                       benign_burst: int = 0, benign_drift_step: int = 0,
+                       benign_spread: Optional[int] = None,
+                       attack_spread_mult: float = 3.0,
+                       poison_mode: Optional[str] = None) -> Dict:
         poisoned = n_injected > 0
+        mode = poison_mode or self.poison_mode
         idxs = self._benign_indices(n_interactions)
         labels = np.zeros(n_interactions, dtype=int)
 
         if poisoned:
-            # Injections REPLACE benign interactions so record count cannot leak the label.
-            # Appending instead is what made the original benchmark solvable by counting
-            # (section 2.3 of the analysis document).
-            start = int(rng.integers(40, max(41, n_interactions - n_injected - 10)))
-            slots = start + rng.choice(
-                min(n_interactions - start, max(n_injected * 3, n_injected)),
-                size=n_injected, replace=False)
-            pois = self._poison_indices(n_injected)
-            for slot, p in zip(sorted(slots), pois):
-                idxs[int(slot)] = p
-                labels[int(slot)] = 1
+            # The attack's burst width, as a multiple of its size. At 3.0 the attack spreads k
+            # records over 3k interactions -- roughly six snapshots -- against a benign cluster
+            # spread over 120. Measured on ap_matched_2k, that contrast is too weak to survive
+            # the backdrop: sequence-level growth-rate features scored 0.47-0.50, chance. The
+            # backdrop adds ten records per snapshot, so a one-or-two record per snapshot
+            # difference in cluster growth is buried. A multiplier near 1.0 lands the whole
+            # attack inside one or two snapshots, which is what makes burstiness detectable.
+            spread = max(int(round(n_injected * attack_spread_mult)), n_injected)
+            slots = self._place(idxs, rng, n_interactions, n_injected,
+                                spread=spread, drift_step=0)
+            labels[slots] = 1
+        elif benign_burst > 0:
+            # A clean sequence carrying a tight cluster of the same size. Its labels stay 0,
+            # so the final snapshot looks like an attack to any density statistic while the
+            # sequence is genuinely benign.
+            self._place(idxs, rng, n_interactions, benign_burst,
+                        spread=benign_spread, drift_step=benign_drift_step)
 
-        trig = self._trigger_embedding() if (poisoned and self.poison_mode == "trigger") else None
+        trig = self._trigger_embedding() if (poisoned and mode == "trigger") else None
 
         records, snaps = [], 0
         interval = self.cfg["snapshot_interval"]
@@ -214,9 +264,11 @@ class AgentPoisonSequenceBuilder:
 
         return {"sequence_id": seq_id,
                 "label": "poisoned" if poisoned else "clean",
-                "attack_type": (f"flood_{self.poison_mode}" if poisoned else None),
+                "attack_type": (f"flood_{mode}" if poisoned
+                                else ("benign_burst" if benign_burst > 0 else None)),
                 "num_snapshots": snaps,
-                "num_injected": int(n_injected)}
+                "num_injected": int(n_injected),
+                "benign_burst": int(benign_burst)}
 
 
 def main():
@@ -240,6 +292,29 @@ def main():
                          "cluster = easier to detect. This pair is the difficulty dial.")
     ap.add_argument("--session-length", type=int, default=12)
     ap.add_argument("--attack-ratio", type=float, default=0.4)
+    ap.add_argument("--trigger-fraction", type=float, default=0.0,
+                    help="Share of poisoned sequences using the trigger mode instead of "
+                         "placement, so one dataset carries both attack types and the "
+                         "per-attack-type breakdown has more than one row.")
+    ap.add_argument("--matched-control", type=float, default=0.0,
+                    help="Share of CLEAN sequences given a benign tight cluster of the same "
+                         "size as an attack. Its final snapshot carries the same density a "
+                         "flood produces, so final-state features lose their grip and only "
+                         "the arrival pattern separates the classes. This is the "
+                         "final-state-matched benchmark.")
+    ap.add_argument("--benign-drift-step", type=int, default=0,
+                    help="0 keeps the benign cluster's centre fixed, matching the attack "
+                         "exactly. >0 lets it re-centre every N records, so the cluster is "
+                         "as tight at any instant but wanders over the sequence.")
+    ap.add_argument("--attack-spread-mult", type=float, default=3.0,
+                    help="Attack burst width as a multiple of attack size. 1.0 lands the whole "
+                         "injection inside one or two snapshots; 3.0 spreads it over about six "
+                         "and, measured on ap_matched_2k, leaves no detectable growth-rate "
+                         "signal once the benign backdrop is accounted for.")
+    ap.add_argument("--benign-spread", type=int, default=None,
+                    help="Interactions the benign cluster arrives over. Default (unset) is "
+                         "the whole sequence, against the attack's burst of 3x its size -- "
+                         "so burstiness alone distinguishes them.")
     ap.add_argument("--train-ratio", type=float, default=0.60)
     ap.add_argument("--val-ratio", type=float, default=0.15)
     ap.add_argument("--seed", type=int, default=42)
@@ -260,18 +335,33 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     n_pois = int(args.num_sequences * args.attack_ratio)
     n_clean = args.num_sequences - n_pois
+    n_trig = int(round(n_pois * args.trigger_fraction))
+    n_matched = int(round(n_clean * args.matched_control))
     print(f"Building {n_clean} clean and {n_pois} poisoned sequences "
-          f"({n_inter} interactions each), poison mode '{args.poison_mode}'")
+          f"({n_inter} interactions each)")
+    print(f"  poisoned: {n_pois - n_trig} placement, {n_trig} trigger")
+    print(f"  clean:    {n_clean - n_matched} ordinary, {n_matched} with a matched benign "
+          f"burst (drift step {args.benign_drift_step}, spread "
+          f"{args.benign_spread if args.benign_spread else 'whole sequence'})")
 
     meta = []
     for i in tqdm(range(n_clean), desc="clean"):
         rng = np.random.default_rng(args.seed + i)
-        meta.append(builder.build_sequence(n_inter, 0, f"clean_{i:04d}", out, rng))
+        burst = 0
+        if i < n_matched:
+            # Drawn from the same range the attacks are, so the two clusters are matched in
+            # size as well as in tightness.
+            burst = int(rng.integers(args.injection_range[0], args.injection_range[1] + 1))
+        meta.append(builder.build_sequence(
+            n_inter, 0, f"clean_{i:04d}", out, rng, benign_burst=burst,
+            benign_drift_step=args.benign_drift_step, benign_spread=args.benign_spread))
     for i in tqdm(range(n_pois), desc="poisoned"):
         rng = np.random.default_rng(args.seed + 10000 + i)
         k = int(rng.integers(args.injection_range[0], args.injection_range[1] + 1))
+        mode = "trigger" if i < n_trig else "placement"
         meta.append(builder.build_sequence(
-            n_inter, k, f"poisoned_flood_{i:04d}", out, rng))
+            n_inter, k, f"poisoned_{mode}_{i:04d}", out, rng, poison_mode=mode,
+            attack_spread_mult=args.attack_spread_mult))
 
     with open(out / "metadata.json", "w") as f:
         json.dump(meta, f, indent=2)
