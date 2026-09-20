@@ -31,7 +31,8 @@ class Evaluator:
 
     def __init__(self, config: dict, checkpoint_path: str, data_dir: str, device: torch.device,
                  model_cls: type = TGNDetector, batch_size: int = None,
-                 structural_features: bool = False, scale_readout: bool = False):
+                 structural_features: bool = False, scale_readout: bool = False,
+                 readout: str = None):
         self.config = config
         self.device = device
         self.structural_features = structural_features
@@ -39,8 +40,12 @@ class Evaluator:
         # Must match how the checkpoint was trained; see train.py --structural-features.
         if structural_features:
             config["model"]["node_meta_dim"] = 3 + 4
-        # Must match the training run; it changes the pooled dimension.
+        # Must match the training run; it changes the pooled dimension. Getting this wrong
+        # silently evaluates a differently-shaped model against the checkpoint's weights --
+        # see eval_ap_scale.INVALID_train_eval_mismatch.json for what that produces.
         config["model"]["scale_readout"] = bool(scale_readout)
+        if readout:
+            config["model"]["readout"] = readout
 
         self.model = model_cls(config).to(self.device)
         self.model.load_state_dict(torch.load(checkpoint_path, map_location=self.device, weights_only=True))
@@ -332,6 +337,8 @@ def main():
                          help="Must match the flag the checkpoint was trained with.")
     parser.add_argument("--scale-readout", action="store_true",
                         help="Must match the training run's --scale-readout setting.")
+    parser.add_argument("--readout", choices=["attention", "scale", "gated"], default=None,
+                        help="Must match the training run's --readout setting.")
     parser.add_argument("--output", default=None,
                          help="Override output path (default: <run-dir>/eval_results.json)")
     args = parser.parse_args()
@@ -352,7 +359,7 @@ def main():
     evaluator = Evaluator(config, str(checkpoint_path), args.data, device=device, model_cls=model_cls,
                            batch_size=args.batch_size,
                            structural_features=args.structural_features,
-                           scale_readout=args.scale_readout)
+                           scale_readout=args.scale_readout, readout=args.readout)
 
     print("Running graph-level evaluation...")
     graph_res = evaluator.evaluate_graph_level()
