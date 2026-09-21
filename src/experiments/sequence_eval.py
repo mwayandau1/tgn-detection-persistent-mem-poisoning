@@ -173,6 +173,13 @@ def main():
     ap.add_argument("--checkpoint", default="phase2_best.pt")
     ap.add_argument("--readout", default="attention",
                     choices=["attention", "scale", "gated"])
+    ap.add_argument("--no-structural-features", dest="structural_features",
+                    action="store_false", default=True,
+                    help="Evaluate a checkpoint trained WITHOUT the 4 structural node "
+                         "columns. This must match how the checkpoint was trained: the "
+                         "model's input width depends on it, and a mismatch loads the "
+                         "weights into a differently-shaped model and reports a number that "
+                         "means nothing.")
     ap.add_argument("--label", default="T-GNN")
     ap.add_argument("--skip-model", action="store_true",
                     help="Baselines only -- runs with no GPU, so it can be done while a "
@@ -254,7 +261,7 @@ def main():
             from src.data_generation.dataset import MemoryTrajectoryDataset, collate_trajectories
             from src.models.tgn_detector import TGNDetector
 
-            cfg["model"]["node_meta_dim"] = 3 + 4
+            cfg["model"]["node_meta_dim"] = 3 + 4 if args.structural_features else 3
             cfg["model"]["readout"] = args.readout
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             model = TGNDetector(cfg).to(device)
@@ -263,7 +270,8 @@ def main():
             model.eval()
 
             ds = MemoryTrajectoryDataset(args.data, split="test", temporal_window=T,
-                                         embedding_dim=emb_dim, structural_features=True)
+                                         embedding_dim=emb_dim,
+                                         structural_features=args.structural_features)
             loader = DataLoader(ds, batch_size=cfg["training"]["batch_size"], shuffle=False,
                                 collate_fn=collate_trajectories)
             model.reset_memory()
