@@ -177,6 +177,12 @@ def main():
     ap.add_argument("--skip-model", action="store_true",
                     help="Baselines only -- runs with no GPU, so it can be done while a "
                          "training job holds the card.")
+    ap.add_argument("--window-scores", default=None,
+                    help="Score from a precomputed window_scores_test.npz instead of "
+                         "building a TGNDetector. This is how the static-GNN baseline is "
+                         "evaluated: the aggregation, the bootstrap and the paired test are "
+                         "then literally the same code for both models, so a difference "
+                         "between them cannot come from the evaluation.")
     ap.add_argument("--cache", default=None,
                     help="Where to cache the per-sequence feature table; recomputing the "
                          "similarity matrices for every snapshot is the expensive part.")
@@ -234,32 +240,41 @@ def main():
               f"{average_precision_score(yte, s):>7.4f}   [{lo:.4f}, {hi:.4f}]")
 
     if not args.skip_model:
-        import torch
-        from torch.utils.data import DataLoader
-        from src.data_generation.dataset import MemoryTrajectoryDataset, collate_trajectories
-        from src.models.tgn_detector import TGNDetector
+        if args.window_scores:
+            # Precomputed path: the model has already been run over the test windows and its
+            # per-window scores dumped. Everything below this point is identical either way.
+            z = np.load(args.window_scores, allow_pickle=True)
+            win = np.asarray(z["score"], float)
+            wseq = np.asarray(z["window_sequence_id"])
+            print(f"\n  window scores loaded from {args.window_scores} "
+                  f"({len(win)} windows)")
+        else:
+            import torch
+            from torch.utils.data import DataLoader
+            from src.data_generation.dataset import MemoryTrajectoryDataset, collate_trajectories
+            from src.models.tgn_detector import TGNDetector
 
-        cfg["model"]["node_meta_dim"] = 3 + 4
-        cfg["model"]["readout"] = args.readout
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        model = TGNDetector(cfg).to(device)
-        model.load_state_dict(torch.load(Path(args.run_dir) / args.checkpoint,
-                                         map_location=device, weights_only=True))
-        model.eval()
+            cfg["model"]["node_meta_dim"] = 3 + 4
+            cfg["model"]["readout"] = args.readout
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            model = TGNDetector(cfg).to(device)
+            model.load_state_dict(torch.load(Path(args.run_dir) / args.checkpoint,
+                                             map_location=device, weights_only=True))
+            model.eval()
 
-        ds = MemoryTrajectoryDataset(args.data, split="test", temporal_window=T,
-                                     embedding_dim=emb_dim, structural_features=True)
-        loader = DataLoader(ds, batch_size=cfg["training"]["batch_size"], shuffle=False,
-                            collate_fn=collate_trajectories)
-        model.reset_memory()
-        win = []
-        with torch.no_grad():
-            for batch in loader:
-                graphs = [g.to(device) for g in batch["graphs"]]
-                s, _ = model(graphs)
-                win.extend(s.cpu().numpy().tolist())
-        win = np.array(win, float)
-        wseq = np.array([w[0] for w in ds.windows])
+            ds = MemoryTrajectoryDataset(args.data, split="test", temporal_window=T,
+                                         embedding_dim=emb_dim, structural_features=True)
+            loader = DataLoader(ds, batch_size=cfg["training"]["batch_size"], shuffle=False,
+                                collate_fn=collate_trajectories)
+            model.reset_memory()
+            win = []
+            with torch.no_grad():
+                for batch in loader:
+                    graphs = [g.to(device) for g in batch["graphs"]]
+                    s, _ = model(graphs)
+                    win.extend(s.cpu().numpy().tolist())
+            win = np.array(win, float)
+            wseq = np.array([w[0] for w in ds.windows])
 
         order = [r["sequence_id"] for r in cached["test"]]
         for agg, fn in (("max", np.max), ("mean", np.mean), ("last", lambda v: v[-1])):
