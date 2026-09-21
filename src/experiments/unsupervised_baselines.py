@@ -113,7 +113,23 @@ def main():
 
     meta = {m["sequence_id"]: m for m in json.load(open(data / "metadata.json"))}
     splits = json.load(open(data / "splits.json"))
+
+    # Start from whatever is already on disk so a partial run MERGES rather than clobbers.
+    # Running with --skip-record used to overwrite the file with an empty record_level, which
+    # is worse than a crash: downstream readers print their expected values with nothing
+    # measured beside them, and that reads as agreement.
+    out = Path(args.output) if args.output else data / "unsupervised_baselines.json"
     results = {"data": data.name, "record_level": {}, "sequence_level": {}}
+    if out.exists():
+        try:
+            prior = json.load(open(out))
+            for key in ("record_level", "sequence_level"):
+                results[key] = prior.get(key, {})
+            if args.skip_record and results["record_level"]:
+                print(f"keeping {len(results['record_level'])} record-level result(s) "
+                      f"already in {out.name}")
+        except (json.JSONDecodeError, OSError) as exc:
+            print(f"could not read existing {out.name} ({exc}); starting fresh")
 
     # --- record level ------------------------------------------------------------------
     if not args.skip_record:
@@ -165,7 +181,6 @@ def main():
     np.savez(data / "unsupervised_sequence_scores_test.npz",
              sequence_id=order, y=y, **dumps)
 
-    out = Path(args.output) if args.output else data / "unsupervised_baselines.json"
     json.dump(results, open(out, "w"), indent=2)
     print(f"\nSaved to {out}")
     print(f"Per-sequence scores -> {data / 'unsupervised_sequence_scores_test.npz'}")
