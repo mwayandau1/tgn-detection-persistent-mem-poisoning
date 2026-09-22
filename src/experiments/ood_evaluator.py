@@ -137,10 +137,20 @@ def evaluate_preloaded_data(model: nn.Module,
     }
 
 
-def run_all_ood_experiments(config_path: str, checkpoint_path: str, data_dir: str, output_path: str, batch_size: int = 4, max_samples: int = 100):
+def run_all_ood_experiments(config_path: str, checkpoint_path: str, data_dir: str, output_path: str, batch_size: int = 4, max_samples: int = 100, structural_features: bool = False):
     """Run full OOD stress-test suite and write summary JSON."""
     with open(config_path) as f:
         config = yaml.safe_load(f)
+
+    # Must match how the checkpoint was trained; see train.py --structural-features. The two
+    # settings below have to move together: node_meta_dim widens the model's input layer and
+    # structural_features widens what the dataset emits. Setting one without the other loads
+    # the checkpoint against a differently-shaped model, which does not always raise -- see
+    # experiments/eval_ap_scale.INVALID_train_eval_mismatch.json for what that silently
+    # produced. Every ap_burst2k run is trained with this flag on.
+    if structural_features:
+        config["model"]["node_meta_dim"] = 3 + 4
+        print("Structural node features enabled: node_meta_dim=7", flush=True)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}", flush=True)
@@ -151,6 +161,7 @@ def run_all_ood_experiments(config_path: str, checkpoint_path: str, data_dir: st
         data_dir=data_dir,
         split="test",
         temporal_window=config["training"]["temporal_window"],
+        structural_features=structural_features,
     )
     preloaded_items = preload_dataset_to_gpu(test_dataset, device, max_samples=max_samples)
 
@@ -228,6 +239,9 @@ if __name__ == "__main__":
     parser.add_argument("--output", type=str, default="experiments/ood_results.json", help="Path to output JSON")
     parser.add_argument("--batch-size", type=int, default=4, help="Evaluation batch size")
     parser.add_argument("--max-samples", type=int, default=100, help="Maximum test samples to evaluate")
+    parser.add_argument("--structural-features", action="store_true",
+                        help="Checkpoint was trained with structural node features "
+                             "(node_meta_dim=7). Required for every ap_burst2k run.")
     args = parser.parse_args()
 
     run_all_ood_experiments(
@@ -237,4 +251,5 @@ if __name__ == "__main__":
         output_path=args.output,
         batch_size=args.batch_size,
         max_samples=args.max_samples,
+        structural_features=args.structural_features,
     )
