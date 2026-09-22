@@ -42,14 +42,29 @@ def calculate_fpr_at_tpr90(y_true: np.ndarray, y_scores: np.ndarray) -> float:
     return float(fpr[target_idx[0]])
 
 
-def preload_dataset_to_gpu(dataset: MemoryTrajectoryDataset, device: torch.device, max_samples: int = 100) -> List[dict]:
-    """Pre-load trajectory samples into memory and move tensors to GPU."""
-    print(f"Pre-loading {max_samples} test trajectory samples to {device}...", flush=True)
+def preload_dataset_to_gpu(dataset: MemoryTrajectoryDataset, device: torch.device, max_samples: int = 100, seed: int = 0) -> List[dict]:
+    """Pre-load a random sample of trajectory windows into memory and move tensors to GPU.
+
+    The sample is RANDOM, and deliberately so. This previously took `range(max_samples)` --
+    the first N windows in dataset order. Because a dataset enumerates every window of one
+    sequence before moving to the next, the default of 100 evaluated roughly nine sequences
+    out of five hundred, selected by file order, and every figure in the robustness section
+    rested on that slice. On ap_burst2k the first 150 windows span 14 of 500 sequences and
+    score about 0.05 above the full test partition, so the bias was not academic.
+
+    The whole split is not used instead because preloading it to VRAM needs far more memory
+    than the 4 GB card this project reports timings on; sampling is a memory constraint, and
+    it is the non-randomness that was the defect.
+    """
     num_items = min(len(dataset), max_samples)
+    idx = np.random.default_rng(seed).choice(len(dataset), size=num_items, replace=False)
+    idx.sort()
+    print(f"Pre-loading {num_items} of {len(dataset)} test windows "
+          f"(random sample, seed {seed}) to {device}...", flush=True)
 
     items = []
-    for i in range(num_items):
-        item = dataset[i]
+    for i in idx:
+        item = dataset[int(i)]
         gpu_graphs = [g.to(device) for g in item["graphs"]]
         items.append({
             "graphs": gpu_graphs,
@@ -74,6 +89,12 @@ def evaluate_preloaded_data(model: nn.Module,
     Evaluates model on GPU-preloaded dataset split under specific perturbation parameters.
     """
     model.eval()
+    # The detector carries per-node GRU memory across calls, so without this the state left
+    # behind by the previous condition leaks into the next one and every result depends on the
+    # order the sweeps happened to run in. It showed up as the three zero-perturbation
+    # conditions (sigma=0, p=0, r=0) disagreeing when all three are no-ops and must be
+    # identical. Every other evaluation path in src/ resets here; this one did not.
+    model.reset_memory()
 
     graph_targets = []
     graph_preds = []
@@ -164,6 +185,10 @@ def run_all_ood_experiments(config_path: str, checkpoint_path: str, data_dir: st
         structural_features=structural_features,
     )
     preloaded_items = preload_dataset_to_gpu(test_dataset, device, max_samples=max_samples)
+    pos = sum(int(it["graph_label"]) for it in preloaded_items)
+    print(f"  sampled {len(preloaded_items)} windows: {pos} positive, "
+          f"{len(preloaded_items) - pos} negative, "
+          f"{len({it['sequence_id'] for it in preloaded_items})} distinct sequences", flush=True)
 
     # Load model checkpoint
     print(f"Loading model checkpoint from {checkpoint_path}...", flush=True)
