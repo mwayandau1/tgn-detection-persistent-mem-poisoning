@@ -1,0 +1,8 @@
+{
+  "ablation": "mean_pool",
+  "seed": 42,
+  "structural_features": true,
+  "epochs_supervised": 12,
+  "n_windows": 5500,
+  "parameters": 662594
+}

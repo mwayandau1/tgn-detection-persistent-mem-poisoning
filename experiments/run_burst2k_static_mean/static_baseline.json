@@ -1,0 +1,8 @@
+{
+  "readout": "mean",
+  "seed": 42,
+  "epochs_supervised": 12,
+  "structural_features": true,
+  "n_windows": 5500,
+  "parameters": 297922
+}
