@@ -1,0 +1,194 @@
+{
+  "baseline_clean": {
+    "graph_auroc": 0.8269,
+    "graph_ap": 0.7782,
+    "graph_f1": 0.6531,
+    "fpr_at_tpr90": 0.6218,
+    "node_auroc": 0.9006,
+    "node_ap": 0.5116
+  },
+  "embedding_noise_sweep": {
+    "0.0": {
+      "graph_auroc": 0.8275,
+      "graph_ap": 0.7782,
+      "graph_f1": 0.6486,
+      "fpr_at_tpr90": 0.5868,
+      "node_auroc": 0.9005,
+      "node_ap": 0.511
+    },
+    "0.05": {
+      "graph_auroc": 0.8173,
+      "graph_ap": 0.7688,
+      "graph_f1": 0.6442,
+      "fpr_at_tpr90": 0.6312,
+      "node_auroc": 0.8985,
+      "node_ap": 0.5001
+    },
+    "0.1": {
+      "graph_auroc": 0.8066,
+      "graph_ap": 0.7428,
+      "graph_f1": 0.6073,
+      "fpr_at_tpr90": 0.5976,
+      "node_auroc": 0.8946,
+      "node_ap": 0.4632
+    },
+    "0.15": {
+      "graph_auroc": 0.7881,
+      "graph_ap": 0.719,
+      "graph_f1": 0.573,
+      "fpr_at_tpr90": 0.6393,
+      "node_auroc": 0.8795,
+      "node_ap": 0.4301
+    },
+    "0.2": {
+      "graph_auroc": 0.7353,
+      "graph_ap": 0.6453,
+      "graph_f1": 0.5229,
+      "fpr_at_tpr90": 0.7806,
+      "node_auroc": 0.8693,
+      "node_ap": 0.3656
+    },
+    "0.25": {
+      "graph_auroc": 0.6886,
+      "graph_ap": 0.5583,
+      "graph_f1": 0.5262,
+      "fpr_at_tpr90": 0.7685,
+      "node_auroc": 0.8507,
+      "node_ap": 0.2777
+    },
+    "0.3": {
+      "graph_auroc": 0.6641,
+      "graph_ap": 0.4896,
+      "graph_f1": 0.487,
+      "fpr_at_tpr90": 0.7968,
+      "node_auroc": 0.8363,
+      "node_ap": 0.2092
+    }
+  },
+  "threshold_sensitivity_sweep": {
+    "0.4": {
+      "graph_auroc": 0.8332,
+      "graph_ap": 0.7537,
+      "graph_f1": 0.6575,
+      "fpr_at_tpr90": 0.5316,
+      "node_auroc": 0.9177,
+      "node_ap": 0.491
+    },
+    "0.5": {
+      "graph_auroc": 0.8395,
+      "graph_ap": 0.7865,
+      "graph_f1": 0.6634,
+      "fpr_at_tpr90": 0.5464,
+      "node_auroc": 0.9105,
+      "node_ap": 0.5295
+    },
+    "0.6": {
+      "graph_auroc": 0.8269,
+      "graph_ap": 0.7771,
+      "graph_f1": 0.6464,
+      "fpr_at_tpr90": 0.5868,
+      "node_auroc": 0.9003,
+      "node_ap": 0.5101
+    },
+    "0.7": {
+      "graph_auroc": 0.8161,
+      "graph_ap": 0.7728,
+      "graph_f1": 0.637,
+      "fpr_at_tpr90": 0.638,
+      "node_auroc": 0.8907,
+      "node_ap": 0.5232
+    },
+    "0.8": {
+      "graph_auroc": 0.7967,
+      "graph_ap": 0.7566,
+      "graph_f1": 0.6108,
+      "fpr_at_tpr90": 0.6904,
+      "node_auroc": 0.8807,
+      "node_ap": 0.5111
+    }
+  },
+  "metadata_corruption_sweep": {
+    "0.0": {
+      "graph_auroc": 0.8269,
+      "graph_ap": 0.7776,
+      "graph_f1": 0.6542,
+      "fpr_at_tpr90": 0.5935,
+      "node_auroc": 0.9003,
+      "node_ap": 0.5114
+    },
+    "0.05": {
+      "graph_auroc": 0.8164,
+      "graph_ap": 0.7657,
+      "graph_f1": 0.6308,
+      "fpr_at_tpr90": 0.6514,
+      "node_auroc": 0.8961,
+      "node_ap": 0.4828
+    },
+    "0.1": {
+      "graph_auroc": 0.7974,
+      "graph_ap": 0.7412,
+      "graph_f1": 0.6067,
+      "fpr_at_tpr90": 0.6285,
+      "node_auroc": 0.8871,
+      "node_ap": 0.4663
+    },
+    "0.2": {
+      "graph_auroc": 0.776,
+      "graph_ap": 0.6983,
+      "graph_f1": 0.5417,
+      "fpr_at_tpr90": 0.6689,
+      "node_auroc": 0.8744,
+      "node_ap": 0.4184
+    },
+    "0.3": {
+      "graph_auroc": 0.7634,
+      "graph_ap": 0.6788,
+      "graph_f1": 0.4892,
+      "fpr_at_tpr90": 0.681,
+      "node_auroc": 0.8667,
+      "node_ap": 0.3755
+    }
+  },
+  "edge_loss_sweep": {
+    "0.0": {
+      "graph_auroc": 0.8273,
+      "graph_ap": 0.778,
+      "graph_f1": 0.6497,
+      "fpr_at_tpr90": 0.5908,
+      "node_auroc": 0.9004,
+      "node_ap": 0.5111
+    },
+    "0.05": {
+      "graph_auroc": 0.824,
+      "graph_ap": 0.7731,
+      "graph_f1": 0.6321,
+      "fpr_at_tpr90": 0.6097,
+      "node_auroc": 0.8976,
+      "node_ap": 0.5037
+    },
+    "0.1": {
+      "graph_auroc": 0.821,
+      "graph_ap": 0.77,
+      "graph_f1": 0.6283,
+      "fpr_at_tpr90": 0.6178,
+      "node_auroc": 0.8949,
+      "node_ap": 0.5023
+    },
+    "0.2": {
+      "graph_auroc": 0.8138,
+      "graph_ap": 0.7583,
+      "graph_f1": 0.6112,
+      "fpr_at_tpr90": 0.603,
+      "node_auroc": 0.8908,
+      "node_ap": 0.4901
+    },
+    "0.3": {
+      "graph_auroc": 0.8057,
+      "graph_ap": 0.7475,
+      "graph_f1": 0.5865,
+      "fpr_at_tpr90": 0.6245,
+      "node_auroc": 0.8831,
+      "node_ap": 0.4773
+    }
+  }
+}
