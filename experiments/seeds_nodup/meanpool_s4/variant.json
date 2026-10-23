@@ -1,0 +1,12 @@
+{
+  "model": "meanpool",
+  "seed": 4,
+  "parameters": 662594,
+  "memory_slots": "per_window",
+  "train_seconds": 10922.9,
+  "static_wide_hidden": null,
+  "val_window_auroc_b1": 0.6577710448459355,
+  "val_score_seconds": 394.7,
+  "test_window_auroc_b1": 0.6349464761272452,
+  "test_score_seconds": 647.5
+}

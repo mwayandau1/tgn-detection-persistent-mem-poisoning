@@ -341,10 +341,15 @@ def main():
                         help="Must match the training run's --readout setting.")
     parser.add_argument("--output", default=None,
                          help="Override output path (default: <run-dir>/eval_results.json)")
+    parser.add_argument("--memory-slots", choices=["shared", "per_window"], default="shared",
+                        help="Node-memory bank addressing for batched windows (see "
+                        "TGNDetector.memory_slots). 'per_window' at any batch size equals "
+                        "batch size 1; 'shared' reproduces the run_burst2k_* figures.")
     args = parser.parse_args()
 
     with open(args.config) as f:
         config = yaml.safe_load(f)
+    config["model"]["memory_slots"] = args.memory_slots
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")

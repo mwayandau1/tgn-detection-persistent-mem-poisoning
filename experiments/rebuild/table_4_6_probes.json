@@ -1,0 +1,55 @@
+{
+  "data": "E:\\BackUp\\PRJTS\\msearch\\impl\\AI-poisoned\\data\\raw\\ap_burst2k_nodup",
+  "probes": {
+    "structural": {
+      "auroc": 0.6340874033107485,
+      "ap": 0.4217544538975501
+    },
+    "content": {
+      "auroc": 0.49665969156104134,
+      "ap": 0.3057823826363091
+    },
+    "combined": {
+      "auroc": 0.6309389847698662,
+      "ap": 0.4205372444620378
+    },
+    "node_content": {
+      "auroc": 0.5143420946968881,
+      "ap": 0.026748358092143626,
+      "n_train_records": 174010,
+      "n_test_records": 72510,
+      "test_positive_rate": 0.025582678251275685
+    }
+  },
+  "detector_window_level": {
+    "window_auroc": {
+      "mean": 0.7043591809202806,
+      "sd": 0.008140132754839925,
+      "values": [
+        0.7008680423245632,
+        0.6958628447067554,
+        0.7086844686149791,
+        0.7000475293020343,
+        0.7163330196530708
+      ]
+    },
+    "window_ap": {
+      "mean": 0.5649491285482133,
+      "sd": 0.016804773542078957,
+      "values": [
+        0.5521057326107571,
+        0.5482648788479033,
+        0.5742224808962937,
+        0.5610197573840517,
+        0.5891327930020606
+      ]
+    }
+  },
+  "detector_source": [
+    "E:\\BackUp\\PRJTS\\msearch\\impl\\AI-poisoned\\experiments\\seeds_nodup\\tgn_s1\\window_scores_test_b1.npz",
+    "E:\\BackUp\\PRJTS\\msearch\\impl\\AI-poisoned\\experiments\\seeds_nodup\\tgn_s2\\window_scores_test_b1.npz",
+    "E:\\BackUp\\PRJTS\\msearch\\impl\\AI-poisoned\\experiments\\seeds_nodup\\tgn_s3\\window_scores_test_b1.npz",
+    "E:\\BackUp\\PRJTS\\msearch\\impl\\AI-poisoned\\experiments\\seeds_nodup\\tgn_s4\\window_scores_test_b1.npz",
+    "E:\\BackUp\\PRJTS\\msearch\\impl\\AI-poisoned\\experiments\\seeds_nodup\\tgn_s5\\window_scores_test_b1.npz"
+  ]
+}

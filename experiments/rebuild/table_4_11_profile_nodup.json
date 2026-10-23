@@ -1,0 +1,56 @@
+{
+  "checkpoint": "experiments\\seeds_nodup\\tgn_s1\\phase2_best.pt",
+  "checkpoint_bytes": 2695493,
+  "checkpoint_mib": 2.570622444152832,
+  "data": "data/raw/ap_burst2k_nodup",
+  "n_windows": 200,
+  "torch": "2.5.1+cu121",
+  "parameters": 670915,
+  "parameters_by_submodule": {
+    "node_memory": 200064,
+    "graph_encoder": 334464,
+    "attn_pool": 8321,
+    "temporal_aggregator": 99072,
+    "graph_head": 8321,
+    "node_head": 20673
+  },
+  "cuda": {
+    "batch_size_1": {
+      "mean_ms": 89.11337578105496,
+      "std_ms": 10.056859117329033,
+      "p50_ms": 89.83159996569157,
+      "p95_ms": 104.6215200156439,
+      "n": 190,
+      "throughput_windows_per_sec": 11.22165994987023,
+      "peak_gpu_memory_mib": 22.74658203125
+    },
+    "batch_size_4": {
+      "mean_ms": 131.6265729086202,
+      "std_ms": 9.828054789807524,
+      "p50_ms": 131.42814993625507,
+      "p95_ms": 147.44704506592825,
+      "n": 48,
+      "throughput_windows_per_sec": 30.38900057647889,
+      "peak_gpu_memory_mib": 32.294921875
+    }
+  },
+  "gpu": "Quadro P2000",
+  "cpu": {
+    "batch_size_1": {
+      "mean_ms": 56.15398105491247,
+      "std_ms": 12.353850314192018,
+      "p50_ms": 54.85370004316792,
+      "p95_ms": 74.74489494343287,
+      "n": 190,
+      "throughput_windows_per_sec": 17.808176396649582
+    },
+    "batch_size_4": {
+      "mean_ms": 103.42240208895721,
+      "std_ms": 15.707576177638401,
+      "p50_ms": 98.84945000521839,
+      "p95_ms": 132.1440800093114,
+      "n": 48,
+      "throughput_windows_per_sec": 38.67634012754278
+    }
+  }
+}

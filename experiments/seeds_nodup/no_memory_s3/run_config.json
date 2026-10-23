@@ -1,0 +1,119 @@
+{
+  "argv": [
+    "E:\\BackUp\\PRJTS\\msearch\\impl\\AI-poisoned\\src\\experiments\\train_variant.py",
+    "--data",
+    "data/raw/ap_burst2k_nodup",
+    "--model",
+    "no_memory",
+    "--seed",
+    "3",
+    "--output",
+    "E:\\BackUp\\PRJTS\\msearch\\impl\\AI-poisoned\\experiments\\seeds_nodup\\no_memory_s3",
+    "--memory-slots",
+    "per_window",
+    "--cached"
+  ],
+  "args": {
+    "data": "data/raw/ap_burst2k_nodup",
+    "output": "E:\\BackUp\\PRJTS\\msearch\\impl\\AI-poisoned\\experiments\\seeds_nodup\\no_memory_s3",
+    "model": "no_memory",
+    "seed": 3,
+    "config": "configs/default.yaml",
+    "epochs_supervised": 12,
+    "noise_augment_prob": 0.5,
+    "noise_sigma_max": 0.15,
+    "memory_slots": "per_window",
+    "cached": true,
+    "skip_scoring": false
+  },
+  "config": {
+    "api_rate_limit": 5.0,
+    "simulation": {
+      "num_sequences": 300,
+      "interactions_per_sequence": 200,
+      "memory_size_baseline": 300,
+      "snapshot_interval": 10,
+      "embedding_dim": 384,
+      "semantic_edge_threshold": 0.6,
+      "domain": "customer_support"
+    },
+    "attacks": {
+      "types": [
+        {
+          "name": "minja_query_only",
+          "description": "Query-only injection via bridging steps (MINJA-style)",
+          "num_injected_records": 15,
+          "injection_spread": 30,
+          "semantic_coherence": 0.85
+        },
+        {
+          "name": "direct_write",
+          "description": "Privileged attacker with direct memory write access",
+          "num_injected_records": 10,
+          "injection_spread": 1,
+          "semantic_coherence": 0.9
+        },
+        {
+          "name": "incremental_slow",
+          "description": "Low-and-slow gradual poisoning over many sessions",
+          "num_injected_records": 20,
+          "injection_spread": 100,
+          "semantic_coherence": 0.75
+        }
+      ],
+      "target_neighborhood_size": 20,
+      "attack_ratio": 0.4
+    },
+    "model": {
+      "node_feature_dim": 384,
+      "node_memory_dim": 128,
+      "gat_hidden_dim": 128,
+      "gat_heads": 4,
+      "gat_layers": 2,
+      "gru_hidden_dim": 128,
+      "mlp_hidden_dim": 64,
+      "dropout": 0.3,
+      "memory_slots": "per_window",
+      "readout": "attention"
+    },
+    "training": {
+      "temporal_window": 10,
+      "batch_size": 4,
+      "learning_rate": 0.0001,
+      "weight_decay": 1e-05,
+      "epochs_contrastive": 10,
+      "epochs_supervised": 12,
+      "early_stopping_patience": 10,
+      "gradient_clip": 1.0,
+      "focal_loss_gamma": 3.0,
+      "focal_loss_alpha": 0.85,
+      "loss_alpha": 1.0,
+      "loss_beta": 1.5,
+      "loss_gamma": 0.3,
+      "oversample_ratio": 3
+    },
+    "evaluation": {
+      "metrics": [
+        "auroc",
+        "f1",
+        "average_precision",
+        "detection_latency",
+        "fpr_at_tpr90"
+      ],
+      "target_auroc": 0.85,
+      "ood_auroc_drop_threshold": 0.05
+    },
+    "dataset": {
+      "train_ratio": 0.8,
+      "val_ratio": 0.1,
+      "test_ratio": 0.1,
+      "seed": 42
+    }
+  },
+  "seed": 3,
+  "git_commit": "600f647",
+  "src_dirty": true,
+  "torch": "2.5.1+cu121",
+  "device": "cuda",
+  "gpu": "Quadro P2000"
+}

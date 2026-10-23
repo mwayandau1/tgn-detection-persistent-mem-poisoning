@@ -1,0 +1,63 @@
+{
+ "run": "tgn_s1",
+ "selection_rule": {
+  "median_attack_size": 12,
+  "median_latency_detected": 5.0,
+  "candidates": 6,
+  "candidates_detected": 2
+ },
+ "seed_sequence_aurocs": {
+  "tgn_s1": 0.6594500000000001,
+  "tgn_s2": 0.6400666666666666,
+  "tgn_s3": 0.6721166666666667,
+  "tgn_s4": 0.6582,
+  "tgn_s5": 0.6769999999999998
+ },
+ "sequence": "poisoned_placement_0756",
+ "injected_records": 12,
+ "onset_snapshot": 12,
+ "graph_threshold": 0.9444253593683243,
+ "node_threshold": 0.43972037732601094,
+ "false_alarm_rate": 0.05,
+ "thresholds_from": "all benign validation windows / records of the same run",
+ "window_end_snapshot": [
+  9,
+  10,
+  11,
+  12,
+  13,
+  14,
+  15,
+  16,
+  17,
+  18,
+  19
+ ],
+ "graph_scores": [
+  0.052925195544958115,
+  0.04790152981877327,
+  0.05825569108128548,
+  0.0702650398015976,
+  0.331659734249115,
+  0.7696173787117004,
+  0.8874740600585938,
+  0.9437024593353271,
+  0.9659422636032104,
+  0.9772721529006958,
+  0.9831640124320984
+ ],
+ "graph_truth": [
+  0,
+  0,
+  0,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1
+ ],
+ "first_alert_snapshot": 17
+}

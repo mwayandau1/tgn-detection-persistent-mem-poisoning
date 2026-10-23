@@ -1,0 +1,15 @@
+{
+  "same_ids": true,
+  "same_splits": true,
+  "same_sizes": true,
+  "size_range_poisoned": [
+    5,
+    20
+  ],
+  "poisoned_with_identical_slots": "800/800",
+  "clusters_containing_duplicates": {
+    "dup": "1571/2000",
+    "nodup": "170/2000"
+  },
+  "background_records_identical": "518/374567"
+}

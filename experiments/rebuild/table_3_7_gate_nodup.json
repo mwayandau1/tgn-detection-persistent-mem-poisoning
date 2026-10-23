@@ -1,0 +1,16 @@
+{
+  "position_only_window_auroc": 0.5949979992845605,
+  "sequence_level": {
+    "final_maxdeg": 0.5078666666666666,
+    "final_density": 0.513375,
+    "final_tightness": 0.47088333333333343,
+    "max_jump_maxdeg": 0.5637416666666667,
+    "max_jump_density": 0.5504333333333333,
+    "jump_ratio": 0.5775666666666668,
+    "growth_std": 0.5453916666666667,
+    "max_jump_tightness": 0.5251750000000001
+  },
+  "n_sequences": 500,
+  "n_poisoned": 200,
+  "verdict": "NO SIGNAL -- do not train; retune the generator"
+}

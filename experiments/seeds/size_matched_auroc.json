@@ -1,0 +1,34 @@
+{
+  "5-8": {
+    "n_clean": 76,
+    "n_poisoned": 45,
+    "size_matched_auroc_mean": 0.5204093567251462,
+    "size_matched_auroc_sd": 0.017435582044205023,
+    "mean_score_clean": 0.08829268150178618,
+    "mean_score_poisoned": 0.17735619518905876
+  },
+  "9-12": {
+    "n_clean": 76,
+    "n_poisoned": 59,
+    "size_matched_auroc_mean": 0.8913024085637824,
+    "size_matched_auroc_sd": 0.020257340403931828,
+    "mean_score_clean": 0.1366978422591561,
+    "mean_score_poisoned": 0.7302603794735366
+  },
+  "13-16": {
+    "n_clean": 68,
+    "n_poisoned": 43,
+    "size_matched_auroc_mean": 0.9127222982216143,
+    "size_matched_auroc_sd": 0.010995624235677782,
+    "mean_score_clean": 0.2800165967194035,
+    "mean_score_poisoned": 0.8589960092202175
+  },
+  "17-20": {
+    "n_clean": 80,
+    "n_poisoned": 53,
+    "size_matched_auroc_mean": 0.9680660377358491,
+    "size_matched_auroc_sd": 0.016704208193677225,
+    "mean_score_clean": 0.2918217636318877,
+    "mean_score_poisoned": 0.974932183311233
+  }
+}

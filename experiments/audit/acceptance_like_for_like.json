@@ -1,0 +1,42 @@
+{
+  "as reported (batch 4, shared slots) | val": {
+    "window_auroc": 0.8981862909958156,
+    "sequence_auroc": 0.8556481481481482,
+    "sequence_ci95": [
+      0.8085436839544305,
+      0.8991340818826398
+    ],
+    "n_sequences": 300,
+    "n_poisoned": 120
+  },
+  "as reported (batch 4, shared slots) | test": {
+    "window_auroc": 0.8262471441889331,
+    "sequence_auroc": 0.8143500000000001,
+    "sequence_ci95": [
+      0.7715416011819348,
+      0.8565377763756948
+    ],
+    "n_sequences": 500,
+    "n_poisoned": 200
+  },
+  "as specified (batch 1) | val": {
+    "window_auroc": 0.8844979010210651,
+    "sequence_auroc": 0.8524537037037038,
+    "sequence_ci95": [
+      0.8043781519751337,
+      0.8975034119798008
+    ],
+    "n_sequences": 300,
+    "n_poisoned": 120
+  },
+  "as specified (batch 1) | test": {
+    "window_auroc": 0.8248917939455518,
+    "sequence_auroc": 0.8193666666666667,
+    "sequence_ci95": [
+      0.779418434777354,
+      0.8595662021179263
+    ],
+    "n_sequences": 500,
+    "n_poisoned": 200
+  }
+}

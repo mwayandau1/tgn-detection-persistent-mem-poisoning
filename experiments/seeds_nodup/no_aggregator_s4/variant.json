@@ -1,0 +1,12 @@
+{
+  "model": "no_aggregator",
+  "seed": 4,
+  "parameters": 571843,
+  "memory_slots": "per_window",
+  "train_seconds": 5194.4,
+  "static_wide_hidden": null,
+  "val_window_auroc_b1": 0.6886669648542665,
+  "val_score_seconds": 187.2,
+  "test_window_auroc_b1": 0.6958676173335138,
+  "test_score_seconds": 316.4
+}
