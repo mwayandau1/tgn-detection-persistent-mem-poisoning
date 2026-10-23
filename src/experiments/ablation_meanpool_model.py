@@ -38,6 +38,7 @@ class TGNDetectorMeanPool(TGNDetector):
         last_batch_idx = None
 
         self.reset_memory()
+        stride = self._memory_stride(graph_sequence)
 
         for t in range(T):
             g = graph_sequence[t]
@@ -46,15 +47,14 @@ class TGNDetectorMeanPool(TGNDetector):
             batch_idx = g.batch
             edge_attr = g.edge_attr if hasattr(g, 'edge_attr') and g.edge_attr is not None else None
 
-            if hasattr(g, 'node_ids') and g.node_ids is not None:
-                prev_memory = self._get_node_memories(g.node_ids, x.device)
-            else:
-                prev_memory = None
+            slots = self._slot_ids(g, stride)
+            prev_memory = (self._get_node_memories(slots, x.device)
+                           if slots is not None else None)
 
             node_mem = self.node_memory(x, prev_memory)
 
-            if hasattr(g, 'node_ids') and g.node_ids is not None:
-                self._store_node_memories(g.node_ids, node_mem)
+            if slots is not None:
+                self._store_node_memories(slots, node_mem)
 
             gat_input = torch.cat([x, node_mem], dim=-1)
             node_embeddings = self.graph_encoder(gat_input, edge_index, edge_attr=edge_attr)
@@ -76,6 +76,7 @@ class TGNDetectorMeanPool(TGNDetector):
         T = len(graph_sequence)
         graph_embeddings = []
         self.reset_memory()
+        stride = self._memory_stride(graph_sequence)
 
         for t in range(T):
             g = graph_sequence[t]
@@ -84,15 +85,14 @@ class TGNDetectorMeanPool(TGNDetector):
             batch_idx = g.batch
             edge_attr = g.edge_attr if hasattr(g, 'edge_attr') and g.edge_attr is not None else None
 
-            if hasattr(g, 'node_ids') and g.node_ids is not None:
-                prev_memory = self._get_node_memories(g.node_ids, x.device)
-            else:
-                prev_memory = None
+            slots = self._slot_ids(g, stride)
+            prev_memory = (self._get_node_memories(slots, x.device)
+                           if slots is not None else None)
 
             node_mem = self.node_memory(x, prev_memory)
 
-            if hasattr(g, 'node_ids') and g.node_ids is not None:
-                self._store_node_memories(g.node_ids, node_mem)
+            if slots is not None:
+                self._store_node_memories(slots, node_mem)
 
             gat_input = torch.cat([x, node_mem], dim=-1)
             node_embeddings = self.graph_encoder(gat_input, edge_index, edge_attr=edge_attr)

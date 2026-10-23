@@ -149,6 +149,16 @@ def main():
     ap.add_argument("--cluster-k", type=int, default=12)
     ap.add_argument("--target-fpr", type=float, nargs="+", default=[0.05, 0.10])
     ap.add_argument("--n-boot", type=int, default=2000)
+    ap.add_argument("--memory-slots", choices=["shared", "per_window"], default="shared",
+                    help="Node-memory bank addressing for batched windows (see "
+                         "TGNDetector.memory_slots). 'per_window' at any batch size equals "
+                         "batch size 1; 'shared' reproduces the run_burst2k_* figures.")
+    ap.add_argument("--batch-size", type=int, default=None,
+                    help="Scoring batch size; defaults to the training batch size (4).")
+    ap.add_argument("--cached", action="store_true",
+                    help="Read windows from the verified per-sequence cache.")
+    ap.add_argument("--window-scores-name", default="window_scores_test.npz",
+                    help="File name for the per-window test scores written to --run-dir.")
     ap.add_argument("--output", default=None)
     args = ap.parse_args()
 
@@ -158,6 +168,7 @@ def main():
     thr_edge = cfg["simulation"]["semantic_edge_threshold"]
     cfg["model"]["node_meta_dim"] = 3 + 4
     cfg["model"]["scale_readout"] = bool(args.scale_readout)
+    cfg["model"]["memory_slots"] = args.memory_slots
 
     data_dir = Path(args.data)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -170,10 +181,13 @@ def main():
 
     splits = {}
     for name in ("train", "val", "test"):
-        ds = MemoryTrajectoryDataset(args.data, split=name, temporal_window=T,
-                                     embedding_dim=emb, structural_features=True)
+        ds_cls = MemoryTrajectoryDataset
+        if args.cached:
+            from src.data_generation.cached_dataset import CachedTrajectoryDataset as ds_cls
+        ds = ds_cls(args.data, split=name, temporal_window=T,
+                    embedding_dim=emb, structural_features=True)
         X, y, seq = structural_features(ds, emb, thr_edge, args.cluster_k)
-        g = tgn_scores(model, ds, device, cfg["training"]["batch_size"])
+        g = tgn_scores(model, ds, device, args.batch_size or cfg["training"]["batch_size"])
         start = np.array([w[1] for w in ds.windows], dtype=int)
         assert len(g) == len(y) == len(start), f"{name}: length mismatch"
         splits[name] = {"X": X, "y": y, "seq": seq, "tgn": g, "start": start}
@@ -262,13 +276,13 @@ def main():
     out = Path(args.output) if args.output else Path(args.run_dir) / "detection_latency.json"
     json.dump(results, open(out, "w"), indent=2)
 
-    np.savez(Path(args.run_dir) / "window_scores_test.npz",
+    np.savez(Path(args.run_dir) / args.window_scores_name,
              seq=te["seq"], start=te["start"], y=te["y"],
              tgn=te["tgn"], lr=te["lr"],
              num_injected=np.array([meta[s]["num_injected"] for s in te["seq"]]),
              attack_type=np.array([meta[s]["attack_type"] or "clean" for s in te["seq"]]))
     print(f"\nSaved to {out}")
-    print(f"Per-window test scores: {Path(args.run_dir) / 'window_scores_test.npz'}")
+    print(f"Per-window test scores: {Path(args.run_dir) / args.window_scores_name}")
 
 
 if __name__ == "__main__":

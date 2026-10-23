@@ -114,7 +114,8 @@ class Trainer:
                  structural_features: bool = False,
                  select_by: str = "auroc",
                  scale_readout: bool = False,
-                 readout: Optional[str] = None):
+                 readout: Optional[str] = None,
+                 dataset_cls: type = MemoryTrajectoryDataset):
         self.config = config
         self.train_cfg = config["training"]
         self.data_dir = Path(data_dir)
@@ -149,15 +150,15 @@ class Trainer:
         train_ids, val_ids, holdout_ids = self._build_splits(holdout_attack_type)
         self.holdout_ids = holdout_ids
 
-        self.train_dataset = MemoryTrajectoryDataset(
+        self.train_dataset = dataset_cls(
             data_dir, temporal_window=T, embedding_dim=embedding_dim, sequence_ids=train_ids,
             structural_features=structural_features)
-        self.val_dataset = MemoryTrajectoryDataset(
+        self.val_dataset = dataset_cls(
             data_dir, temporal_window=T, embedding_dim=embedding_dim, sequence_ids=val_ids,
             structural_features=structural_features)
         self.holdout_dataset = None
         if holdout_ids:
-            self.holdout_dataset = MemoryTrajectoryDataset(
+            self.holdout_dataset = dataset_cls(
                 data_dir, temporal_window=T, embedding_dim=embedding_dim, sequence_ids=holdout_ids,
                 structural_features=structural_features)
 
@@ -417,6 +418,24 @@ class Trainer:
                 "n_sequences": len(self.holdout_ids)}
 
 
+def write_run_config(output_dir: Path, args, config: dict, device) -> None:
+    """Record what produced this run beside its checkpoint: CLI, resolved config, versions."""
+    import subprocess
+    try:
+        commit = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"],
+                                         text=True, stderr=subprocess.DEVNULL).strip()
+        dirty = bool(subprocess.check_output(["git", "status", "--porcelain", "--", "src"],
+                                             text=True, stderr=subprocess.DEVNULL).strip())
+    except Exception:
+        commit, dirty = None, None
+    record = {"argv": sys.argv, "args": vars(args), "config": config, "seed": args.seed,
+              "git_commit": commit, "src_dirty": dirty, "torch": torch.__version__,
+              "device": str(device),
+              "gpu": torch.cuda.get_device_name(0) if device.type == "cuda" else None}
+    with open(output_dir / "run_config.json", "w") as f:
+        json.dump(record, f, indent=2, default=str)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", default="configs/default.yaml")
@@ -463,19 +482,38 @@ def main():
                              "gates: +771 parameters, and bit-identical to attention pooling at "
                              "initialisation, so the comparison isolates the information.")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--memory-slots", choices=["shared", "per_window"], default="shared",
+                        help="How the node-memory bank is addressed when windows are batched; "
+                             "see TGNDetector.memory_slots. 'shared' reproduces every run up "
+                             "to run_burst2k_*; 'per_window' is the architecture as specified.")
+    parser.add_argument("--cached", action="store_true",
+                        help="Read windows from the per-sequence cache "
+                             "(src.data_generation.cached_dataset), which returns tensors "
+                             "bit-identical to the default loader at a fraction of the CPU cost.")
     args = parser.parse_args()
 
     with open(args.config) as f:
         config = yaml.safe_load(f)
     if args.epochs_supervised is not None:
         config["training"]["epochs_supervised"] = args.epochs_supervised
-    set_seed(config.get("dataset", {}).get("seed", args.seed))
+    config["model"]["memory_slots"] = args.memory_slots
+    # This used to read config["dataset"]["seed"] first and fall back to --seed, and
+    # configs/default.yaml sets that key to 42, so --seed was silently ignored: the run
+    # recorded as "seed 1" (run_burst2k_base_s1) was initialised from seed 42. The CLI flag
+    # now governs, and the seed actually used is written to run_config.json.
+    set_seed(args.seed)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
+    write_run_config(output_dir, args, config, device)
+
+    dataset_cls = MemoryTrajectoryDataset
+    if args.cached:
+        from src.data_generation.cached_dataset import CachedTrajectoryDataset
+        dataset_cls = CachedTrajectoryDataset
 
     trainer = Trainer(
         config, args.data, device,
@@ -486,6 +524,7 @@ def main():
         select_by=args.select_by,
         scale_readout=args.scale_readout,
         readout=args.readout,
+        dataset_cls=dataset_cls,
     )
 
     if not args.skip_phase1:

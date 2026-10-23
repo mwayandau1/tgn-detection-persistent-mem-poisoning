@@ -330,9 +330,37 @@ class TGNDetector(nn.Module):
         self.gru_hidden = gru_hidden
         self.memory_dim = memory_dim
         self._memory_tensor: Optional[torch.Tensor] = None
+        # How the memory bank is addressed when several windows are batched together.
+        # The dataset gives every snapshot node_ids = arange(n), and Batch.from_data_list does
+        # not offset them (it offsets only attributes named like "index"), so under "shared"
+        # node i of every window in a batch reads and writes ONE slot: state crosses windows,
+        # and with shuffle=False it crosses from later windows of the same sequence.
+        # "per_window" offsets each window's ids by its position in the batch. At batch size 1
+        # the offset is zero and the two modes are bit-identical, so every checkpoint scores
+        # the same at batch 1 under either. "shared" is the behaviour every run up to
+        # run_burst2k_* was trained and evaluated with, and stays the default so those
+        # figures reproduce; see src/experiments/score_windows.py for the measured effect.
+        self.memory_slots = model_cfg.get("memory_slots", "shared")
+        if self.memory_slots not in ("shared", "per_window"):
+            raise ValueError(f"unknown memory_slots {self.memory_slots!r}")
 
     def reset_memory(self):
         self._memory_tensor = None
+
+    def _memory_stride(self, graph_sequence: List[Batch]) -> int:
+        if self.memory_slots == "shared":
+            return 0
+        ids = [g.node_ids for g in graph_sequence
+               if getattr(g, "node_ids", None) is not None and g.node_ids.numel()]
+        return max(int(i.max().item()) for i in ids) + 1 if ids else 0
+
+    @staticmethod
+    def _slot_ids(g, stride: int) -> Optional[torch.Tensor]:
+        """Memory-bank addresses for the nodes of one batched snapshot."""
+        ids = getattr(g, "node_ids", None)
+        if ids is None or stride == 0 or getattr(g, "batch", None) is None:
+            return ids
+        return ids + g.batch * stride
 
     def _ensure_memory_tensor(self, required_size: int, device: torch.device):
         if self._memory_tensor is None or self._memory_tensor.size(0) < required_size:
@@ -365,6 +393,7 @@ class TGNDetector(nn.Module):
         last_batch_idx = None
 
         self.reset_memory()
+        stride = self._memory_stride(graph_sequence)
 
         for t in range(T):
             g = graph_sequence[t]
@@ -373,15 +402,14 @@ class TGNDetector(nn.Module):
             batch_idx = g.batch
             edge_attr = g.edge_attr if hasattr(g, 'edge_attr') and g.edge_attr is not None else None
 
-            if hasattr(g, 'node_ids') and g.node_ids is not None:
-                prev_memory = self._get_node_memories(g.node_ids, x.device)
-            else:
-                prev_memory = None
+            slots = self._slot_ids(g, stride)
+            prev_memory = (self._get_node_memories(slots, x.device)
+                           if slots is not None else None)
 
             node_mem = self.node_memory(x, prev_memory)
 
-            if hasattr(g, 'node_ids') and g.node_ids is not None:
-                self._store_node_memories(g.node_ids, node_mem)
+            if slots is not None:
+                self._store_node_memories(slots, node_mem)
 
             gat_input = torch.cat([x, node_mem], dim=-1)
             node_embeddings = self.graph_encoder(gat_input, edge_index, edge_attr=edge_attr)
@@ -404,6 +432,7 @@ class TGNDetector(nn.Module):
         T = len(graph_sequence)
         graph_embeddings = []
         self.reset_memory()
+        stride = self._memory_stride(graph_sequence)
 
         for t in range(T):
             g = graph_sequence[t]
@@ -412,15 +441,14 @@ class TGNDetector(nn.Module):
             batch_idx = g.batch
             edge_attr = g.edge_attr if hasattr(g, 'edge_attr') and g.edge_attr is not None else None
 
-            if hasattr(g, 'node_ids') and g.node_ids is not None:
-                prev_memory = self._get_node_memories(g.node_ids, x.device)
-            else:
-                prev_memory = None
+            slots = self._slot_ids(g, stride)
+            prev_memory = (self._get_node_memories(slots, x.device)
+                           if slots is not None else None)
 
             node_mem = self.node_memory(x, prev_memory)
 
-            if hasattr(g, 'node_ids') and g.node_ids is not None:
-                self._store_node_memories(g.node_ids, node_mem)
+            if slots is not None:
+                self._store_node_memories(slots, node_mem)
 
             gat_input = torch.cat([x, node_mem], dim=-1)
             node_embeddings = self.graph_encoder(gat_input, edge_index, edge_attr=edge_attr)

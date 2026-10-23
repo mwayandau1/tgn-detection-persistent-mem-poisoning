@@ -77,7 +77,7 @@ class AgentPoisonSequenceBuilder:
     def __init__(self, config: dict, kb_dir: Path, seed: int = 42,
                  poison_mode: str = "placement",
                  benign_pool: int = 60, poison_pool: int = 8,
-                 session_length: int = 12):
+                 session_length: int = 12, no_duplicates: bool = False):
         self.cfg = config["simulation"]
         self.rng = np.random.default_rng(seed)
         self.poison_mode = poison_mode
@@ -87,6 +87,12 @@ class AgentPoisonSequenceBuilder:
         self.benign_pool = benign_pool
         self.poison_pool = poison_pool
         self.session_length = session_length
+        # With a pool of 8 and k > 8, the cluster is drawn WITH replacement, so every cluster
+        # of nine or more records contains exact copies (cosine 1.0) and no cluster of eight
+        # or fewer does. That ties attack size to duplication. no_duplicates widens the pool
+        # to k so the draw is without replacement; it is off by default so ap_burst2k
+        # regenerates unchanged.
+        self.no_duplicates = no_duplicates
         self.threshold = self.cfg["semantic_edge_threshold"]
         self.emb_dim = self.cfg["embedding_dim"]
 
@@ -147,7 +153,8 @@ class AgentPoisonSequenceBuilder:
         """
         cur = int(self.rng.integers(0, len(self.kb)))
         if drift_step <= 0:
-            pool = self.neighbours[cur, :self.poison_pool]
+            width = max(self.poison_pool, k) if self.no_duplicates else self.poison_pool
+            pool = self.neighbours[cur, :width]
             return [int(i) for i in self.rng.choice(pool, size=k, replace=k > len(pool))]
         out: List[int] = []
         while len(out) < k:
@@ -187,7 +194,8 @@ class AgentPoisonSequenceBuilder:
                        benign_burst: int = 0, benign_drift_step: int = 0,
                        benign_spread: Optional[int] = None,
                        attack_spread_mult: float = 3.0,
-                       poison_mode: Optional[str] = None) -> Dict:
+                       poison_mode: Optional[str] = None,
+                       attack_spread: Optional[int] = None) -> Dict:
         poisoned = n_injected > 0
         mode = poison_mode or self.poison_mode
         idxs = self._benign_indices(n_interactions)
@@ -202,6 +210,9 @@ class AgentPoisonSequenceBuilder:
             # difference in cluster growth is buried. A multiplier near 1.0 lands the whole
             # attack inside one or two snapshots, which is what makes burstiness detectable.
             spread = max(int(round(n_injected * attack_spread_mult)), n_injected)
+            if attack_spread:
+                # An absolute burst length, so size and burst length can be varied apart.
+                spread = max(int(attack_spread), n_injected)
             slots = self._place(idxs, rng, n_interactions, n_injected,
                                 spread=spread, drift_step=0)
             labels[slots] = 1
@@ -315,6 +326,12 @@ def main():
                     help="Interactions the benign cluster arrives over. Default (unset) is "
                          "the whole sequence, against the attack's burst of 3x its size -- "
                          "so burstiness alone distinguishes them.")
+    ap.add_argument("--attack-spread", type=int, default=None,
+                    help="Absolute burst width in interactions, overriding "
+                         "--attack-spread-mult. Decouples burst length from attack size.")
+    ap.add_argument("--no-duplicates", action="store_true",
+                    help="Draw each cluster without replacement from a pool of max(8, k), so "
+                         "no cluster contains exact copies. Off for ap_burst2k.")
     ap.add_argument("--train-ratio", type=float, default=0.60)
     ap.add_argument("--val-ratio", type=float, default=0.15)
     ap.add_argument("--seed", type=int, default=42)
@@ -329,7 +346,7 @@ def main():
     builder = AgentPoisonSequenceBuilder(
         config, Path(args.kb_dir), seed=args.seed, poison_mode=args.poison_mode,
         benign_pool=args.benign_pool, poison_pool=args.poison_pool,
-        session_length=args.session_length)
+        session_length=args.session_length, no_duplicates=args.no_duplicates)
 
     out = Path(args.output)
     out.mkdir(parents=True, exist_ok=True)
@@ -361,7 +378,7 @@ def main():
         mode = "trigger" if i < n_trig else "placement"
         meta.append(builder.build_sequence(
             n_inter, k, f"poisoned_{mode}_{i:04d}", out, rng, poison_mode=mode,
-            attack_spread_mult=args.attack_spread_mult))
+            attack_spread_mult=args.attack_spread_mult, attack_spread=args.attack_spread))
 
     with open(out / "metadata.json", "w") as f:
         json.dump(meta, f, indent=2)

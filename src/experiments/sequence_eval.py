@@ -193,6 +193,12 @@ def main():
     ap.add_argument("--cache", default=None,
                     help="Where to cache the per-sequence feature table; recomputing the "
                          "similarity matrices for every snapshot is the expensive part.")
+    ap.add_argument("--memory-slots", choices=["shared", "per_window"], default="shared",
+                    help="Node-memory bank addressing for batched windows (see "
+                         "TGNDetector.memory_slots). 'per_window' at any batch size equals "
+                         "batch size 1; 'shared' reproduces the run_burst2k_* figures.")
+    ap.add_argument("--batch-size", type=int, default=None,
+                    help="Scoring batch size; defaults to the training batch size (4).")
     ap.add_argument("--n-boot", type=int, default=2000)
     ap.add_argument("--output", default=None)
     args = ap.parse_args()
@@ -263,6 +269,7 @@ def main():
 
             cfg["model"]["node_meta_dim"] = 3 + 4 if args.structural_features else 3
             cfg["model"]["readout"] = args.readout
+            cfg["model"]["memory_slots"] = args.memory_slots
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             model = TGNDetector(cfg).to(device)
             model.load_state_dict(torch.load(Path(args.run_dir) / args.checkpoint,
@@ -272,7 +279,8 @@ def main():
             ds = MemoryTrajectoryDataset(args.data, split="test", temporal_window=T,
                                          embedding_dim=emb_dim,
                                          structural_features=args.structural_features)
-            loader = DataLoader(ds, batch_size=cfg["training"]["batch_size"], shuffle=False,
+            loader = DataLoader(ds, batch_size=args.batch_size or cfg["training"]["batch_size"],
+                                shuffle=False,
                                 collate_fn=collate_trajectories)
             model.reset_memory()
             win = []
