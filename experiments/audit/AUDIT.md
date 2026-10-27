@@ -8,6 +8,9 @@
 > (`run_burst2k_base_s1`, `_gated`, `_meanpool`, `_nostruct`, `_static_attn`, `_static_mean`)
 > are in `data/legacy_runs/` outside Git, checkpoints included. The memory-slot default is now
 > `per_window`; pass `--memory-slots shared` to re-score a pre-audit checkpoint as it was.
+> The same day, commit messages were edited and every commit hash changed (files unchanged);
+> `COMMIT_MAP.md` maps the hashes cited here and in the run records (such as `600f647`, now
+> `c1652cc`) to the current ones.
 
 Audited 14 October 2026 against `MosesWinboodAyandauTGNN-3.docx` (13 Oct 2026) and the
 repository at commit `600f647` (branch `benchmark-hardening`). Every figure below was traced to
