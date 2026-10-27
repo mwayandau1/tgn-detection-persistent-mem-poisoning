@@ -1,0 +1,12 @@
+{
+  "model": "nostruct",
+  "seed": 2,
+  "parameters": 667331,
+  "memory_slots": "per_window",
+  "train_seconds": 12344.1,
+  "static_wide_hidden": null,
+  "val_window_auroc_b1": 0.5279388692657927,
+  "val_score_seconds": 442.3,
+  "test_window_auroc_b1": 0.5488218505701168,
+  "test_score_seconds": 726.9
+}

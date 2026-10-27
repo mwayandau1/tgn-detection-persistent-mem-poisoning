@@ -1,0 +1,439 @@
+{
+  "run_dir": "experiments/run_burst2k_base",
+  "n_poisoned": 50,
+  "n_clean": 100,
+  "cells": [
+    {
+      "duplicates": true,
+      "k": 5,
+      "burst_interactions": 5,
+      "auroc": 0.5214,
+      "ci95": [
+        0.42139,
+        0.618825
+      ],
+      "mean_score_poisoned": 0.2614345422387123,
+      "mean_score_clean": 0.19693254068493843
+    },
+    {
+      "duplicates": true,
+      "k": 5,
+      "burst_interactions": 40,
+      "auroc": 0.5993999999999999,
+      "ci95": [
+        0.496395,
+        0.702615
+      ],
+      "mean_score_poisoned": 0.3251635395735502,
+      "mean_score_clean": 0.19693254068493843
+    },
+    {
+      "duplicates": true,
+      "k": 5,
+      "burst_interactions": 80,
+      "auroc": 0.5768,
+      "ci95": [
+        0.474195,
+        0.677605
+      ],
+      "mean_score_poisoned": 0.37341984242200854,
+      "mean_score_clean": 0.19693254068493843
+    },
+    {
+      "duplicates": true,
+      "k": 8,
+      "burst_interactions": 8,
+      "auroc": 0.6238,
+      "ci95": [
+        0.52419,
+        0.7187099999999998
+      ],
+      "mean_score_poisoned": 0.3665716601908207,
+      "mean_score_clean": 0.21207002837210895
+    },
+    {
+      "duplicates": true,
+      "k": 8,
+      "burst_interactions": 40,
+      "auroc": 0.5254,
+      "ci95": [
+        0.415195,
+        0.6302099999999999
+      ],
+      "mean_score_poisoned": 0.2852515187859535,
+      "mean_score_clean": 0.21207002837210895
+    },
+    {
+      "duplicates": true,
+      "k": 8,
+      "burst_interactions": 80,
+      "auroc": 0.48360000000000003,
+      "ci95": [
+        0.37578,
+        0.584435
+      ],
+      "mean_score_poisoned": 0.23086353793740272,
+      "mean_score_clean": 0.21207002837210895
+    },
+    {
+      "duplicates": true,
+      "k": 9,
+      "burst_interactions": 9,
+      "auroc": 0.7944,
+      "ci95": [
+        0.7089850000000001,
+        0.8684099999999999
+      ],
+      "mean_score_poisoned": 0.6879246935248375,
+      "mean_score_clean": 0.2673567220196128
+    },
+    {
+      "duplicates": true,
+      "k": 9,
+      "burst_interactions": 40,
+      "auroc": 0.6038,
+      "ci95": [
+        0.506375,
+        0.6960149999999999
+      ],
+      "mean_score_poisoned": 0.4085814706236124,
+      "mean_score_clean": 0.2673567220196128
+    },
+    {
+      "duplicates": true,
+      "k": 9,
+      "burst_interactions": 80,
+      "auroc": 0.49940000000000007,
+      "ci95": [
+        0.4003950000000001,
+        0.59842
+      ],
+      "mean_score_poisoned": 0.2692594964802265,
+      "mean_score_clean": 0.2673567220196128
+    },
+    {
+      "duplicates": true,
+      "k": 12,
+      "burst_interactions": 12,
+      "auroc": 0.8302,
+      "ci95": [
+        0.7541950000000001,
+        0.8972049999999999
+      ],
+      "mean_score_poisoned": 0.8156041473150253,
+      "mean_score_clean": 0.35796720668673515
+    },
+    {
+      "duplicates": true,
+      "k": 12,
+      "burst_interactions": 40,
+      "auroc": 0.6955999999999999,
+      "ci95": [
+        0.61498,
+        0.7836
+      ],
+      "mean_score_poisoned": 0.5830001406371593,
+      "mean_score_clean": 0.35796720668673515
+    },
+    {
+      "duplicates": true,
+      "k": 12,
+      "burst_interactions": 80,
+      "auroc": 0.5086,
+      "ci95": [
+        0.41173000000000004,
+        0.6078099999999999
+      ],
+      "mean_score_poisoned": 0.3921160506084561,
+      "mean_score_clean": 0.35796720668673515
+    },
+    {
+      "duplicates": true,
+      "k": 16,
+      "burst_interactions": 16,
+      "auroc": 0.9632000000000001,
+      "ci95": [
+        0.922585,
+        0.9905999999999999
+      ],
+      "mean_score_poisoned": 0.9771523548662663,
+      "mean_score_clean": 0.4197810447961092
+    },
+    {
+      "duplicates": true,
+      "k": 16,
+      "burst_interactions": 40,
+      "auroc": 0.7363999999999999,
+      "ci95": [
+        0.6414,
+        0.828005
+      ],
+      "mean_score_poisoned": 0.7350795222073794,
+      "mean_score_clean": 0.4197810447961092
+    },
+    {
+      "duplicates": true,
+      "k": 16,
+      "burst_interactions": 80,
+      "auroc": 0.5878,
+      "ci95": [
+        0.492195,
+        0.67502
+      ],
+      "mean_score_poisoned": 0.5377239179983735,
+      "mean_score_clean": 0.4197810447961092
+    },
+    {
+      "duplicates": true,
+      "k": 20,
+      "burst_interactions": 20,
+      "auroc": 0.9584,
+      "ci95": [
+        0.92097,
+        0.9852050000000001
+      ],
+      "mean_score_poisoned": 0.9814912408590317,
+      "mean_score_clean": 0.5235668164119125
+    },
+    {
+      "duplicates": true,
+      "k": 20,
+      "burst_interactions": 40,
+      "auroc": 0.8772000000000001,
+      "ci95": [
+        0.81578,
+        0.935805
+      ],
+      "mean_score_poisoned": 0.9214825062453746,
+      "mean_score_clean": 0.5235668164119125
+    },
+    {
+      "duplicates": true,
+      "k": 20,
+      "burst_interactions": 80,
+      "auroc": 0.6216,
+      "ci95": [
+        0.527575,
+        0.7174099999999999
+      ],
+      "mean_score_poisoned": 0.6668106036633253,
+      "mean_score_clean": 0.5235668164119125
+    },
+    {
+      "duplicates": false,
+      "k": 5,
+      "burst_interactions": 5,
+      "auroc": 0.6732,
+      "ci95": [
+        0.577185,
+        0.768815
+      ],
+      "mean_score_poisoned": 0.5183636059984564,
+      "mean_score_clean": 0.2404109026119113
+    },
+    {
+      "duplicates": false,
+      "k": 5,
+      "burst_interactions": 40,
+      "auroc": 0.6132,
+      "ci95": [
+        0.52419,
+        0.711405
+      ],
+      "mean_score_poisoned": 0.3275389916449785,
+      "mean_score_clean": 0.2404109026119113
+    },
+    {
+      "duplicates": false,
+      "k": 5,
+      "burst_interactions": 80,
+      "auroc": 0.558,
+      "ci95": [
+        0.45657499999999995,
+        0.657
+      ],
+      "mean_score_poisoned": 0.3265920035541058,
+      "mean_score_clean": 0.2404109026119113
+    },
+    {
+      "duplicates": false,
+      "k": 8,
+      "burst_interactions": 8,
+      "auroc": 0.5712,
+      "ci95": [
+        0.481995,
+        0.6699999999999999
+      ],
+      "mean_score_poisoned": 0.34463113110512494,
+      "mean_score_clean": 0.31478702457621693
+    },
+    {
+      "duplicates": false,
+      "k": 8,
+      "burst_interactions": 40,
+      "auroc": 0.532,
+      "ci95": [
+        0.44279500000000005,
+        0.62788
+      ],
+      "mean_score_poisoned": 0.31840324472635984,
+      "mean_score_clean": 0.31478702457621693
+    },
+    {
+      "duplicates": false,
+      "k": 8,
+      "burst_interactions": 80,
+      "auroc": 0.5052,
+      "ci95": [
+        0.40895499999999996,
+        0.5988199999999999
+      ],
+      "mean_score_poisoned": 0.28010006725788117,
+      "mean_score_clean": 0.31478702457621693
+    },
+    {
+      "duplicates": false,
+      "k": 9,
+      "burst_interactions": 9,
+      "auroc": 0.6897999999999999,
+      "ci95": [
+        0.59638,
+        0.77921
+      ],
+      "mean_score_poisoned": 0.47127815149724483,
+      "mean_score_clean": 0.21996305717155337
+    },
+    {
+      "duplicates": false,
+      "k": 9,
+      "burst_interactions": 40,
+      "auroc": 0.5318,
+      "ci95": [
+        0.431545,
+        0.63082
+      ],
+      "mean_score_poisoned": 0.2344601647928357,
+      "mean_score_clean": 0.21996305717155337
+    },
+    {
+      "duplicates": false,
+      "k": 9,
+      "burst_interactions": 80,
+      "auroc": 0.4476,
+      "ci95": [
+        0.35397,
+        0.5400149999999999
+      ],
+      "mean_score_poisoned": 0.2002387208864093,
+      "mean_score_clean": 0.21996305717155337
+    },
+    {
+      "duplicates": false,
+      "k": 12,
+      "burst_interactions": 12,
+      "auroc": 0.767,
+      "ci95": [
+        0.682,
+        0.8488150000000001
+      ],
+      "mean_score_poisoned": 0.5917716523259878,
+      "mean_score_clean": 0.23212451433762907
+    },
+    {
+      "duplicates": false,
+      "k": 12,
+      "burst_interactions": 40,
+      "auroc": 0.5668,
+      "ci95": [
+        0.46998000000000006,
+        0.65745
+      ],
+      "mean_score_poisoned": 0.25411566089838744,
+      "mean_score_clean": 0.23212451433762907
+    },
+    {
+      "duplicates": false,
+      "k": 12,
+      "burst_interactions": 80,
+      "auroc": 0.5168,
+      "ci95": [
+        0.40858,
+        0.623645
+      ],
+      "mean_score_poisoned": 0.3169807640835643,
+      "mean_score_clean": 0.23212451433762907
+    },
+    {
+      "duplicates": false,
+      "k": 16,
+      "burst_interactions": 16,
+      "auroc": 0.6966,
+      "ci95": [
+        0.6021900000000001,
+        0.7748149999999999
+      ],
+      "mean_score_poisoned": 0.46527315460145474,
+      "mean_score_clean": 0.3048104783706367
+    },
+    {
+      "duplicates": false,
+      "k": 16,
+      "burst_interactions": 40,
+      "auroc": 0.65,
+      "ci95": [
+        0.5542,
+        0.738605
+      ],
+      "mean_score_poisoned": 0.46263363629579546,
+      "mean_score_clean": 0.3048104783706367
+    },
+    {
+      "duplicates": false,
+      "k": 16,
+      "burst_interactions": 80,
+      "auroc": 0.49400000000000005,
+      "ci95": [
+        0.40219499999999997,
+        0.587405
+      ],
+      "mean_score_poisoned": 0.22638894036412238,
+      "mean_score_clean": 0.3048104783706367
+    },
+    {
+      "duplicates": false,
+      "k": 20,
+      "burst_interactions": 20,
+      "auroc": 0.6342,
+      "ci95": [
+        0.5371900000000001,
+        0.73161
+      ],
+      "mean_score_poisoned": 0.4631539908051491,
+      "mean_score_clean": 0.2845643218047917
+    },
+    {
+      "duplicates": false,
+      "k": 20,
+      "burst_interactions": 40,
+      "auroc": 0.6149999999999999,
+      "ci95": [
+        0.5219799999999999,
+        0.705415
+      ],
+      "mean_score_poisoned": 0.40787793751806023,
+      "mean_score_clean": 0.2845643218047917
+    },
+    {
+      "duplicates": false,
+      "k": 20,
+      "burst_interactions": 80,
+      "auroc": 0.4736,
+      "ci95": [
+        0.37559500000000007,
+        0.56842
+      ],
+      "mean_score_poisoned": 0.22650243043899537,
+      "mean_score_clean": 0.2845643218047917
+    }
+  ]
+}

@@ -1,0 +1,197 @@
+{
+  "n_test": 500,
+  "n_seeds": 5,
+  "detector": {
+    "auroc": {
+      "per_seed": [
+        0.7928666666666667,
+        0.8096333333333334,
+        0.7908,
+        0.8019833333333333,
+        0.8176333333333333
+      ],
+      "mean": 0.8025833333333333,
+      "sd": 0.01128965849301427
+    },
+    "ap": {
+      "per_seed": [
+        0.8053540475383426,
+        0.8210469963654429,
+        0.7991826923450498,
+        0.8138042422694738,
+        0.8236065430641599
+      ],
+      "mean": 0.8125989043164937,
+      "sd": 0.010325622294154622
+    }
+  },
+  "oracles": {
+    "LR, final-state (6)": {
+      "auroc": 0.4650333333333333,
+      "ap": 0.38717568077751274,
+      "detector_minus_auroc": {
+        "delta": 0.33755,
+        "ci95": [
+          0.28298801726074957,
+          0.3908892584905951
+        ],
+        "significant": true
+      },
+      "detector_minus_ap": {
+        "delta": 0.425423223538981,
+        "ci95": [
+          0.3669192882097682,
+          0.47279512148570724
+        ],
+        "significant": true
+      }
+    },
+    "GB, final-state (6)": {
+      "auroc": 0.5436,
+      "ap": 0.45137232116455994,
+      "detector_minus_auroc": {
+        "delta": 0.25898333333333334,
+        "ci95": [
+          0.1911938006558464,
+          0.3247897192603201
+        ],
+        "significant": true
+      },
+      "detector_minus_ap": {
+        "delta": 0.36122658315193384,
+        "ci95": [
+          0.28499479289833063,
+          0.42593415223075815
+        ],
+        "significant": true
+      }
+    },
+    "LR, temporal (7)": {
+      "auroc": 0.7934000000000001,
+      "ap": 0.7108213506895996,
+      "detector_minus_auroc": {
+        "delta": 0.009183333333333233,
+        "ci95": [
+          -0.04015886446113811,
+          0.06292143829101371
+        ],
+        "significant": false
+      },
+      "detector_minus_ap": {
+        "delta": 0.10177755362689418,
+        "ci95": [
+          0.042021506310667825,
+          0.16749056007682717
+        ],
+        "significant": true
+      }
+    },
+    "GB, temporal (7)": {
+      "auroc": 0.810775,
+      "ap": 0.7472978159824903,
+      "detector_minus_auroc": {
+        "delta": -0.008191666666666686,
+        "ci95": [
+          -0.05872403929154578,
+          0.044147026106246455
+        ],
+        "significant": false
+      },
+      "detector_minus_ap": {
+        "delta": 0.06530108833400346,
+        "ci95": [
+          0.007851609057371589,
+          0.12306537080700862
+        ],
+        "significant": true
+      }
+    },
+    "LR, all (13)": {
+      "auroc": 0.8029833333333333,
+      "ap": 0.7202591258610107,
+      "detector_minus_auroc": {
+        "delta": -0.0003999999999999337,
+        "ci95": [
+          -0.04970583984952145,
+          0.054537142218101436
+        ],
+        "significant": false
+      },
+      "detector_minus_ap": {
+        "delta": 0.09233977845548309,
+        "ci95": [
+          0.03424708641885064,
+          0.15734528741189144
+        ],
+        "significant": true
+      }
+    },
+    "GB, all (13)": {
+      "auroc": 0.8203666666666667,
+      "ap": 0.7631355529958705,
+      "detector_minus_auroc": {
+        "delta": -0.017783333333333352,
+        "ci95": [
+          -0.07054158763863919,
+          0.03272349744936435
+        ],
+        "significant": false
+      },
+      "detector_minus_ap": {
+        "delta": 0.04946335132062325,
+        "ci95": [
+          -0.003184727629350556,
+          0.1015321589446238
+        ],
+        "significant": false
+      }
+    },
+    "LR, nine features, final snapshot": {
+      "auroc": 0.49515,
+      "ap": 0.4004931723110847,
+      "detector_minus_auroc": {
+        "delta": 0.30743333333333334,
+        "ci95": [
+          0.24524132692571537,
+          0.3644290513869626
+        ],
+        "significant": true
+      },
+      "detector_minus_ap": {
+        "delta": 0.412105732005409,
+        "ci95": [
+          0.34863825398070875,
+          0.4630678434555996
+        ],
+        "significant": true
+      }
+    },
+    "LR, nine features, max over windows": {
+      "auroc": 0.5648,
+      "ap": 0.5221419465967516,
+      "detector_minus_auroc": {
+        "delta": 0.23778333333333337,
+        "ci95": [
+          0.18879149752732713,
+          0.2822879364889819
+        ],
+        "significant": true
+      },
+      "detector_minus_ap": {
+        "delta": 0.29045695771974217,
+        "ci95": [
+          0.2314325006195164,
+          0.34297746074978064
+        ],
+        "significant": true
+      }
+    }
+  },
+  "detector_inputs": [
+    "experiments/seeds/tgn_s1/window_scores_test_b1.npz",
+    "experiments/seeds/tgn_s2/window_scores_test_b1.npz",
+    "experiments/seeds/tgn_s3/window_scores_test_b1.npz",
+    "experiments/seeds/tgn_s4/window_scores_test_b1.npz",
+    "experiments/seeds/tgn_s5/window_scores_test_b1.npz"
+  ]
+}

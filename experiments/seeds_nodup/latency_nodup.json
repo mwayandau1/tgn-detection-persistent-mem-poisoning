@@ -1,0 +1,175 @@
+{
+  "n_test_poisoned": 200,
+  "n_test_benign": 300,
+  "temporal_window": 10,
+  "detectors": {
+    "fpr_0.05": {
+      "per_detector": {
+        "lr": {
+          "label": "9 features (LR)",
+          "threshold": 0.676977978269514,
+          "val_benign_fpr_window": 0.05030891438658429,
+          "test_benign_fpr_window": 0.044760117930849636,
+          "n_poisoned_evaluated": 200,
+          "n_detected": 64,
+          "detection_rate": 0.32,
+          "mean_latency_detected_only": 6.734375,
+          "median_latency_detected_only": 7.0,
+          "mean_pre_onset_alarms": 0.06,
+          "caught_within": {
+            "0": 0.015,
+            "1": 0.025,
+            "2": 0.06,
+            "3": 0.085,
+            "4": 0.105,
+            "5": 0.14,
+            "6": 0.15,
+            "7": 0.185,
+            "8": 0.21,
+            "9": 0.23,
+            "10": 0.255
+          }
+        },
+        "tgn": {
+          "label": "T-GNN",
+          "threshold": 0.9444254487752914,
+          "val_benign_fpr_window": 0.05030891438658429,
+          "test_benign_fpr_window": 0.047708389171803804,
+          "n_poisoned_evaluated": 200,
+          "n_detected": 82,
+          "detection_rate": 0.41,
+          "mean_latency_detected_only": 5.146341463414634,
+          "median_latency_detected_only": 5.0,
+          "mean_pre_onset_alarms": 0.11,
+          "caught_within": {
+            "0": 0.035,
+            "1": 0.035,
+            "2": 0.045,
+            "3": 0.1,
+            "4": 0.18,
+            "5": 0.255,
+            "6": 0.295,
+            "7": 0.335,
+            "8": 0.37,
+            "9": 0.385,
+            "10": 0.395
+          }
+        }
+      },
+      "tgn_minus_lr": {
+        "0": {
+          "delta_mean": 0.020182500000000006,
+          "ci95": [
+            -0.0050000000000000044,
+            0.05
+          ]
+        },
+        "2": {
+          "delta_mean": -0.014575,
+          "ci95": [
+            -0.05500000000000001,
+            0.030000000000000006
+          ]
+        },
+        "5": {
+          "delta_mean": 0.115785,
+          "ci95": [
+            0.045,
+            0.185
+          ]
+        },
+        "10": {
+          "delta_mean": 0.14138,
+          "ci95": [
+            0.05499999999999999,
+            0.23
+          ]
+        }
+      }
+    },
+    "fpr_0.1": {
+      "per_detector": {
+        "lr": {
+          "label": "9 features (LR)",
+          "threshold": 0.5421891554784244,
+          "val_benign_fpr_window": 0.1001765225066196,
+          "test_benign_fpr_window": 0.09595282766014473,
+          "n_poisoned_evaluated": 200,
+          "n_detected": 119,
+          "detection_rate": 0.595,
+          "mean_latency_detected_only": 7.0,
+          "median_latency_detected_only": 7.0,
+          "mean_pre_onset_alarms": 0.08,
+          "caught_within": {
+            "0": 0.015,
+            "1": 0.05,
+            "2": 0.095,
+            "3": 0.14,
+            "4": 0.18,
+            "5": 0.245,
+            "6": 0.28,
+            "7": 0.34,
+            "8": 0.37,
+            "9": 0.42,
+            "10": 0.465
+          }
+        },
+        "tgn": {
+          "label": "T-GNN",
+          "threshold": 0.8346388339996338,
+          "val_benign_fpr_window": 0.1001765225066196,
+          "test_benign_fpr_window": 0.08657196462074511,
+          "n_poisoned_evaluated": 200,
+          "n_detected": 101,
+          "detection_rate": 0.505,
+          "mean_latency_detected_only": 4.069306930693069,
+          "median_latency_detected_only": 4.0,
+          "mean_pre_onset_alarms": 0.135,
+          "caught_within": {
+            "0": 0.045,
+            "1": 0.065,
+            "2": 0.15,
+            "3": 0.245,
+            "4": 0.315,
+            "5": 0.38,
+            "6": 0.415,
+            "7": 0.465,
+            "8": 0.47,
+            "9": 0.48,
+            "10": 0.49
+          }
+        }
+      },
+      "tgn_minus_lr": {
+        "0": {
+          "delta_mean": 0.0301325,
+          "ci95": [
+            0.0,
+            0.065
+          ]
+        },
+        "2": {
+          "delta_mean": 0.055915000000000006,
+          "ci95": [
+            -0.0049999999999999906,
+            0.115
+          ]
+        },
+        "5": {
+          "delta_mean": 0.135875,
+          "ci95": [
+            0.049874999999999996,
+            0.225
+          ]
+        },
+        "10": {
+          "delta_mean": 0.025817500000000004,
+          "ci95": [
+            -0.065,
+            0.11499999999999999
+          ]
+        }
+      }
+    }
+  }
+}

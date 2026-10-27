@@ -110,13 +110,36 @@ class Trainer:
     def __init__(self, config: dict, data_dir: str, device: torch.device,
                  holdout_attack_type: Optional[str] = None,
                  noise_augment_prob: float = 0.0, noise_sigma_max: float = 0.1,
-                 model_cls: type = TGNDetector):
+                 model_cls: type = TGNDetector,
+                 structural_features: bool = False,
+                 select_by: str = "auroc",
+                 scale_readout: bool = False,
+                 readout: Optional[str] = None,
+                 dataset_cls: type = MemoryTrajectoryDataset):
         self.config = config
         self.train_cfg = config["training"]
         self.data_dir = Path(data_dir)
         self.device = device
         self.noise_augment_prob = noise_augment_prob
         self.noise_sigma_max = noise_sigma_max
+        self.structural_features = structural_features
+        self.select_by = select_by
+        # Must be set before the model is constructed: it changes the pooled dimension
+        # the temporal GRU is built to accept.
+        config["model"]["scale_readout"] = bool(scale_readout)
+        if readout:
+            config["model"]["readout"] = readout
+        if scale_readout:
+            print("  Scale-aware readout: attention + sum + max + log node count")
+        if readout == "gated":
+            print("  Gated scale readout: attention + zero-initialised mean/max/count gates "
+                  "(identical to attention pooling at initialisation)")
+
+        # The model's input width must match what the dataset emits.
+        if structural_features:
+            config["model"]["node_meta_dim"] = 3 + 4
+            print("Structural node features enabled (degree + edge-weight stats): "
+                  "node_meta_dim=7")
 
         self.model = model_cls(config).to(self.device)
         print(f"Model parameters: {sum(p.numel() for p in self.model.parameters()):,}")
@@ -127,14 +150,17 @@ class Trainer:
         train_ids, val_ids, holdout_ids = self._build_splits(holdout_attack_type)
         self.holdout_ids = holdout_ids
 
-        self.train_dataset = MemoryTrajectoryDataset(
-            data_dir, temporal_window=T, embedding_dim=embedding_dim, sequence_ids=train_ids)
-        self.val_dataset = MemoryTrajectoryDataset(
-            data_dir, temporal_window=T, embedding_dim=embedding_dim, sequence_ids=val_ids)
+        self.train_dataset = dataset_cls(
+            data_dir, temporal_window=T, embedding_dim=embedding_dim, sequence_ids=train_ids,
+            structural_features=structural_features)
+        self.val_dataset = dataset_cls(
+            data_dir, temporal_window=T, embedding_dim=embedding_dim, sequence_ids=val_ids,
+            structural_features=structural_features)
         self.holdout_dataset = None
         if holdout_ids:
-            self.holdout_dataset = MemoryTrajectoryDataset(
-                data_dir, temporal_window=T, embedding_dim=embedding_dim, sequence_ids=holdout_ids)
+            self.holdout_dataset = dataset_cls(
+                data_dir, temporal_window=T, embedding_dim=embedding_dim, sequence_ids=holdout_ids,
+                structural_features=structural_features)
 
         self.train_loader = DataLoader(
             self.train_dataset, batch_size=self.train_cfg["batch_size"],
@@ -245,7 +271,19 @@ class Trainer:
         alpha = self.train_cfg["loss_alpha"]
         beta = self.train_cfg["loss_beta"]
 
-        best_val_loss = float("inf")
+        # Checkpoint selection criterion.
+        #
+        # Selecting on validation LOSS silently picks the wrong model whenever loss and
+        # AUROC diverge, which they do on any benchmark hard enough for the model to
+        # start overfitting: on data/raw/synthetic_hard val loss rose monotonically
+        # (0.648 -> 0.966) while val AUROC climbed (0.335 -> 0.476), so loss-based
+        # selection saved epoch 1 — the worst checkpoint by the metric actually
+        # reported. Default to selecting on the reported metric; pass
+        # `--select-by loss` for the old behaviour.
+        select_by = getattr(self, "select_by", "auroc")
+        print(f"  Checkpoint selection: best validation {select_by}")
+        best_score = float("inf") if select_by == "loss" else -float("inf")
+        best_epoch = 0
         no_improve = 0
         history = {"train_loss": [], "val_loss": [], "val_auroc": [], "val_node_auroc": []}
 
@@ -265,8 +303,10 @@ class Trainer:
                   f"Train Loss={train_loss:.4f}, Val Loss={val_loss:.4f}, "
                   f"Val AUROC={val_auroc:.4f}, Val Node AUROC={val_node_auroc:.4f}")
 
-            if val_loss < best_val_loss:
-                best_val_loss = val_loss
+            improved = (val_loss < best_score) if select_by == "loss" else (val_auroc > best_score)
+            if improved:
+                best_score = val_loss if select_by == "loss" else val_auroc
+                best_epoch = epoch + 1
                 no_improve = 0
                 torch.save(self.model.state_dict(), Path(save_dir) / "phase2_best.pt")
             else:
@@ -276,9 +316,12 @@ class Trainer:
                     break
 
         torch.save(self.model.state_dict(), Path(save_dir) / "phase2_final.pt")
+        history["selection"] = {"criterion": select_by, "best_epoch": best_epoch,
+                                "best_score": best_score}
         with open(Path(save_dir) / "training_history.json", "w") as f:
             json.dump(history, f, indent=2)
 
+        print(f"  Best checkpoint: epoch {best_epoch} (val {select_by}={best_score:.4f})")
         print(f"  Models saved to {save_dir}")
 
     def _train_epoch(self, alpha: float, beta: float, epoch: int, epochs: int) -> float:
@@ -375,11 +418,29 @@ class Trainer:
                 "n_sequences": len(self.holdout_ids)}
 
 
+def write_run_config(output_dir: Path, args, config: dict, device) -> None:
+    """Record what produced this run beside its checkpoint: CLI, resolved config, versions."""
+    import subprocess
+    try:
+        commit = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"],
+                                         text=True, stderr=subprocess.DEVNULL).strip()
+        dirty = bool(subprocess.check_output(["git", "status", "--porcelain", "--", "src"],
+                                             text=True, stderr=subprocess.DEVNULL).strip())
+    except Exception:
+        commit, dirty = None, None
+    record = {"argv": sys.argv, "args": vars(args), "config": config, "seed": args.seed,
+              "git_commit": commit, "src_dirty": dirty, "torch": torch.__version__,
+              "device": str(device),
+              "gpu": torch.cuda.get_device_name(0) if device.type == "cuda" else None}
+    with open(output_dir / "run_config.json", "w") as f:
+        json.dump(record, f, indent=2, default=str)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", default="configs/default.yaml")
-    parser.add_argument("--data", default="data/raw/llm_generated")
-    parser.add_argument("--output", default="experiments/run_001")
+    parser.add_argument("--data", default="data/raw/ap_burst2k_nodup")
+    parser.add_argument("--output", default="experiments/run_custom")
     parser.add_argument("--skip-phase1", action="store_true")
     parser.add_argument("--holdout-attack-type", default=None,
                          help="Attack type name to exclude entirely from train/val, "
@@ -388,24 +449,83 @@ def main():
                          help="Probability that a given Phase 2 training batch gets embedding noise.")
     parser.add_argument("--noise-sigma-max", type=float, default=0.15,
                          help="Max sigma for the training-time embedding noise (sampled uniformly per batch).")
+    parser.add_argument("--epochs-supervised", type=int, default=None,
+                         help="Override config['training']['epochs_supervised']. The default of 10 "
+                              "is too few on harder benchmarks, where validation AUROC is still "
+                              "climbing when training stops.")
+    parser.add_argument("--structural-features", action="store_true",
+                         help="Append per-node degree and edge-weight statistics to the node "
+                              "features. GATConv's softmax-normalised attention is a convex "
+                              "combination and so cannot count neighbours; this supplies the "
+                              "local-density information its aggregator cannot derive.")
+    parser.add_argument("--select-by", choices=["auroc", "loss"], default="auroc",
+                         help="Criterion for saving phase2_best.pt. Validation loss and AUROC "
+                              "diverge once the model starts overfitting, so loss-based "
+                              "selection can save the worst checkpoint by the reported metric.")
+    parser.add_argument("--scale-readout", action="store_true",
+                         help="Concatenate sum, max and log-node-count readouts to the "
+                              "attention pool. Attention pooling and GATConv are both "
+                              "softmax-normalised, so the whole node-to-graph path is a "
+                              "weighted average and cannot represent how MANY records sit in "
+                              "a dense region -- which is what the attack is. A logistic "
+                              "regression on nine magnitude features scores 0.995 on "
+                              "synthetic_gap0125 where this model scores 0.889.")
+    parser.add_argument("--readout", choices=["attention", "scale", "gated"], default=None,
+                        help="Graph readout. 'attention' is the published baseline. 'scale' is "
+                             "the concatenating variant --scale-readout selects, which triples "
+                             "the GRU input width and so carries 98,688 more parameters than "
+                             "the baseline; it scored 0.626 against the baseline's 0.889 on "
+                             "synthetic_gap0125 over a full 40-epoch budget with early stopping "
+                             "disabled, which is a capacity failure rather than a verdict on "
+                             "magnitude information. 'gated' adds the same mean, max and count "
+                             "readouts as residual branches behind zero-initialised scalar "
+                             "gates: +771 parameters, and bit-identical to attention pooling at "
+                             "initialisation, so the comparison isolates the information.")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--memory-slots", choices=["shared", "per_window"], default="per_window",
+                        help="How the node-memory bank is addressed when windows are batched; "
+                             "see TGNDetector.memory_slots. 'per_window' (default) is the "
+                             "architecture as specified; 'shared' is the legacy setting of the "
+                             "pre-freeze run_burst2k_* runs.")
+    parser.add_argument("--cached", action="store_true",
+                        help="Read windows from the per-sequence cache "
+                             "(src.data_generation.cached_dataset), which returns tensors "
+                             "bit-identical to the default loader at a fraction of the CPU cost.")
     args = parser.parse_args()
 
     with open(args.config) as f:
         config = yaml.safe_load(f)
-    set_seed(config.get("dataset", {}).get("seed", args.seed))
+    if args.epochs_supervised is not None:
+        config["training"]["epochs_supervised"] = args.epochs_supervised
+    config["model"]["memory_slots"] = args.memory_slots
+    # This used to read config["dataset"]["seed"] first and fall back to --seed, and
+    # configs/default.yaml sets that key to 42, so --seed was silently ignored: the run
+    # recorded as "seed 1" (run_burst2k_base_s1) was initialised from seed 42. The CLI flag
+    # now governs, and the seed actually used is written to run_config.json.
+    set_seed(args.seed)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
+    write_run_config(output_dir, args, config, device)
+
+    dataset_cls = MemoryTrajectoryDataset
+    if args.cached:
+        from src.data_generation.cached_dataset import CachedTrajectoryDataset
+        dataset_cls = CachedTrajectoryDataset
 
     trainer = Trainer(
         config, args.data, device,
         holdout_attack_type=args.holdout_attack_type,
         noise_augment_prob=args.noise_augment_prob,
         noise_sigma_max=args.noise_sigma_max,
+        structural_features=args.structural_features,
+        select_by=args.select_by,
+        scale_readout=args.scale_readout,
+        readout=args.readout,
+        dataset_cls=dataset_cls,
     )
 
     if not args.skip_phase1:

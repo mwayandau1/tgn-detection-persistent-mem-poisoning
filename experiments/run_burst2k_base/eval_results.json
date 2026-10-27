@@ -1,0 +1,65 @@
+{
+  "graph_level": {
+    "auroc": 0.8260660873960382,
+    "f1_at_0.5": 0.6690694626474443,
+    "average_precision": 0.7768821260018821,
+    "fpr_at_tpr_0.9": 0.5757169659608684,
+    "best_f1": 0.6749921898720536,
+    "best_threshold": 0.212869331240654
+  },
+  "node_level": {
+    "node_average_precision": 0.5661747673774963,
+    "node_auroc": 0.9087206578591452
+  },
+  "detection_latency": {
+    "mean_detection_latency": 1.8533333333333333,
+    "median_detection_latency": 1.0,
+    "std_detection_latency": 1.775337213664554,
+    "min_detection_latency": 0,
+    "max_detection_latency": 9
+  },
+  "by_attack_type": {
+    "flood_placement": {
+      "n_sequences": 200,
+      "n_windows": 5500,
+      "graph_auroc": 0.8252512560720312,
+      "graph_average_precision": 0.7786648544491085,
+      "node_auroc": 0.9088407500931885,
+      "node_average_precision": 0.5631723188963224
+    }
+  },
+  "by_attack_size": {
+    "1-8": {
+      "n_sequences": 45,
+      "n_windows": 3795,
+      "graph_auroc": 0.5735460140573219,
+      "graph_average_precision": 0.16791607139010034,
+      "node_auroc": 0.6893595907664145,
+      "node_average_precision": 0.018303615826531536
+    },
+    "9-12": {
+      "n_sequences": 59,
+      "n_windows": 3949,
+      "graph_auroc": 0.822032710280374,
+      "graph_average_precision": 0.6025049881290088,
+      "node_auroc": 0.9020297349166965,
+      "node_average_precision": 0.26482620951498304
+    },
+    "13-16": {
+      "n_sequences": 43,
+      "n_windows": 3773,
+      "graph_auroc": 0.9297261069235526,
+      "graph_average_precision": 0.7459544525798895,
+      "node_auroc": 0.9684391754807692,
+      "node_average_precision": 0.407637287107548
+    },
+    "17-24": {
+      "n_sequences": 53,
+      "n_windows": 3883,
+      "graph_auroc": 0.9554213304642719,
+      "graph_average_precision": 0.8743119790876914,
+      "node_auroc": 0.9863535014131681,
+      "node_average_precision": 0.710813633541936
+    }
+  }
+}

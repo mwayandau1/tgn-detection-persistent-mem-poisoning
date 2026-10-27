@@ -1,0 +1,13 @@
+[09:52] 1/4 cross-score main-benchmark seeds 4 and 5 on the original test set
+[10:19] IDENTICAL on two runs: experiments/duplicates/summary.json
+[10:19] 2/4 position-leak gate on the main benchmark's test split
+[10:21] IDENTICAL on two runs: experiments/rebuild/table_3_7_gate_nodup.json
+[10:21] 3/4 unsupervised baselines on the main benchmark
+[10:27] IDENTICAL on two runs: experiments/rebuild/table_4_4_unsupervised_nodup.json
+[10:27] 4/4 inference profile on a main-benchmark checkpoint (timings, measured once)
+[10:29] second-run checks of the R2 outputs
+[10:29] IDENTICAL on two runs: experiments/rebuild/table_4_4_static_nodes.json
+[10:29] IDENTICAL on two runs: experiments/rebuild/table_4_4_record_level.json
+[10:29] IDENTICAL on two runs: experiments/rebuild/table_4_6_probes.json
+[10:31] IDENTICAL on two runs: experiments/rebuild/tables_4_7_to_4_10_sweeps.json
+[10:31] ALL DONE

@@ -1,0 +1,12 @@
+{
+  "model": "static_attn",
+  "seed": 3,
+  "parameters": 306243,
+  "memory_slots": "per_window",
+  "train_seconds": 3904.2,
+  "static_wide_hidden": null,
+  "val_window_auroc_b1": 0.6257599089048264,
+  "val_score_seconds": 107.6,
+  "test_window_auroc_b1": 0.6188172703635484,
+  "test_score_seconds": 220.6
+}

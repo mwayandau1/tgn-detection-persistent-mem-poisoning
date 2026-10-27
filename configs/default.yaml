@@ -1,79 +1,44 @@
-# Configuration for Memory Poisoning Detection Experiments
+# Configuration read by the detector, the dataset generator and every evaluation script.
+#
+# Values are the recipe behind experiments/audit/RESULTS_FREEZE.md. Each training run also
+# writes the full resolved configuration to its run_config.json. The configuration the
+# withdrawn LLM generator read is kept in archive/llm_benchmark/default_llm_era.yaml.
 
-# === API Settings ===
-api_rate_limit: 5.0             # Max API calls per second
-
-# === Agent Memory Simulation ===
+# === Memory graph (src/data_generation/agentpoison_sequences.py) ===
 simulation:
-  num_sequences: 300          # Total interaction sequences to generate
-  interactions_per_sequence: 200  # Normal interactions per sequence
-  memory_size_baseline: 300   # Records in healthy baseline memory
-  snapshot_interval: 10       # Take graph snapshot every N interactions
-  embedding_dim: 384          # Sentence embedding dimension (MiniLM)
-  semantic_edge_threshold: 0.6  # Cosine sim threshold for semantic edges
-  domain: "customer_support"  # Task domain: customer_support | code_review | medical
+  interactions_per_sequence: 200  # interactions per simulated agent
+  snapshot_interval: 10           # one graph snapshot every N interactions (20 per sequence)
+  embedding_dim: 384              # all-MiniLM-L6-v2 sentence embedding
+  semantic_edge_threshold: 0.6    # edge where cosine similarity > threshold
 
-# === Attack Configuration ===
-attacks:
-  types:
-    - name: "minja_query_only"
-      description: "Query-only injection via bridging steps (MINJA-style)"
-      num_injected_records: 15
-      injection_spread: 30      # Spread injection over N interactions
-      semantic_coherence: 0.85  # How similar poisoned records are to each other
-
-    - name: "direct_write"
-      description: "Privileged attacker with direct memory write access"
-      num_injected_records: 10
-      injection_spread: 1       # All at once
-      semantic_coherence: 0.90
-
-    - name: "incremental_slow"
-      description: "Low-and-slow gradual poisoning over many sessions"
-      num_injected_records: 20
-      injection_spread: 100     # Spread over 100 interactions
-      semantic_coherence: 0.75  # Lower coherence to evade detection
-
-  target_neighborhood_size: 20  # Semantic neighborhood being targeted
-  attack_ratio: 0.4             # 40% of sequences contain attacks
-
-# === Model Architecture ===
+# === Detector (src/models/tgn_detector.py) ===
 model:
-  node_feature_dim: 384         # Input from sentence encoder (model adds +3 meta features internally)
-  node_memory_dim: 128          # GRU memory per node
-  gat_hidden_dim: 128           # GAT hidden dimension
-  gat_heads: 4                  # Number of attention heads
-  gat_layers: 2                 # Number of GAT layers
-  gru_hidden_dim: 128           # Temporal GRU hidden dim
-  mlp_hidden_dim: 64            # Scoring head hidden dim
-  dropout: 0.3
+  node_feature_dim: 384           # embedding width; the 3 behavioural and 4 structural columns
+                                  # are added by the trainer (node_meta_dim = 7)
+  node_memory_dim: 128            # per-node GRU memory
+  gat_hidden_dim: 128             # graph attention hidden width (2 layers, 4 heads then 1)
+  gat_heads: 4
+  gru_hidden_dim: 128             # temporal aggregator
+  mlp_hidden_dim: 64              # scoring heads and attention pooling
+  dropout: 0.3                    # readout defaults to attention pooling (train.py --readout)
+  memory_slots: per_window        # per_window (as specified) | shared (legacy, pre-freeze runs)
 
-# === Training ===
+# === Training (src/models/train.py) ===
 training:
-  temporal_window: 10           # T: number of past snapshots
-  batch_size: 4                 # Optimized for 4GB VRAM GPU (Quadro P2000)
+  temporal_window: 10             # snapshots per window
+  batch_size: 4                   # sized for a 4 GB GPU (Quadro P2000)
   learning_rate: 0.0001
   weight_decay: 0.00001
-  epochs_contrastive: 10        # Phase 1
-  epochs_supervised: 10         # Phase 2
-  early_stopping_patience: 10
+  epochs_contrastive: 10          # optional contrastive phase; not run for any reported model
+  epochs_supervised: 12           # every reported run: 12 epochs
+  early_stopping_patience: 10     # on validation AUROC; never triggered in 12 epochs
   gradient_clip: 1.0
-  focal_loss_gamma: 3.0         # For node-level imbalance (increased for harder mining)
-  focal_loss_alpha: 0.85        # Weight for positive class in focal loss
-  loss_alpha: 1.0               # Weight for L_graph
-  loss_beta: 1.5                # Weight for L_node (increased to prioritize node detection)
-  loss_gamma: 0.3               # Weight for L_contrastive
-  oversample_ratio: 3           # Oversample poisoned trajectories 1:3
+  focal_loss_gamma: 3.0           # node-level focal loss
+  focal_loss_alpha: 0.85          # weight on the positive (injected) class
+  loss_alpha: 1.0                 # weight on the graph-level loss
+  loss_beta: 1.5                  # weight on the node-level loss
 
 # === Evaluation ===
 evaluation:
-  metrics: ["auroc", "f1", "average_precision", "detection_latency", "fpr_at_tpr90"]
-  target_auroc: 0.85
-  ood_auroc_drop_threshold: 0.05
-
-# === Dataset Split ===
-dataset:
-  train_ratio: 0.8
-  val_ratio: 0.1
-  test_ratio: 0.1
-  seed: 42
+  target_auroc: 0.85              # acceptance criterion fixed before evaluation (Section 3.12);
+                                  # documented here, not read by code
