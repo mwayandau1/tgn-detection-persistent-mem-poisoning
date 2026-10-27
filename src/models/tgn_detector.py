@@ -337,10 +337,11 @@ class TGNDetector(nn.Module):
         # and with shuffle=False it crosses from later windows of the same sequence.
         # "per_window" offsets each window's ids by its position in the batch. At batch size 1
         # the offset is zero and the two modes are bit-identical, so every checkpoint scores
-        # the same at batch 1 under either. "shared" is the behaviour every run up to
-        # run_burst2k_* was trained and evaluated with, and stays the default so those
-        # figures reproduce; see src/experiments/score_windows.py for the measured effect.
-        self.memory_slots = model_cfg.get("memory_slots", "shared")
+        # the same at batch 1 under either. "per_window" is the default and the architecture
+        # as specified; every result in RESULTS_FREEZE.md was trained and scored with it.
+        # "shared" is the legacy behaviour the pre-freeze runs (run_burst2k_*) used, kept only
+        # so those can be re-scored as they were; see src/experiments/score_windows.py.
+        self.memory_slots = model_cfg.get("memory_slots", "per_window")
         if self.memory_slots not in ("shared", "per_window"):
             raise ValueError(f"unknown memory_slots {self.memory_slots!r}")
 

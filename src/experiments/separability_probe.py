@@ -39,7 +39,7 @@ This restores, in dataset-agnostic form, the `structural_leak_probe` and
 which were folded into notebook 07 and no longer exist as standalone modules.
 
 Usage:
-    python -m src.experiments.separability_probe --data data/raw/synthetic_medium
+    python -m src.experiments.separability_probe --data data/raw/ap_burst2k_nodup
 """
 
 import sys

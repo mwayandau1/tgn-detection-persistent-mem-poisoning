@@ -188,10 +188,10 @@
     }
   },
   "detector_inputs": [
-    "E:\\BackUp\\PRJTS\\msearch\\impl\\AI-poisoned\\experiments\\seeds_nodup\\tgn_s1\\window_scores_test_b1.npz",
-    "E:\\BackUp\\PRJTS\\msearch\\impl\\AI-poisoned\\experiments\\seeds_nodup\\tgn_s2\\window_scores_test_b1.npz",
-    "E:\\BackUp\\PRJTS\\msearch\\impl\\AI-poisoned\\experiments\\seeds_nodup\\tgn_s3\\window_scores_test_b1.npz",
-    "E:\\BackUp\\PRJTS\\msearch\\impl\\AI-poisoned\\experiments\\seeds_nodup\\tgn_s4\\window_scores_test_b1.npz",
-    "E:\\BackUp\\PRJTS\\msearch\\impl\\AI-poisoned\\experiments\\seeds_nodup\\tgn_s5\\window_scores_test_b1.npz"
+    "experiments/seeds_nodup/tgn_s1/window_scores_test_b1.npz",
+    "experiments/seeds_nodup/tgn_s2/window_scores_test_b1.npz",
+    "experiments/seeds_nodup/tgn_s3/window_scores_test_b1.npz",
+    "experiments/seeds_nodup/tgn_s4/window_scores_test_b1.npz",
+    "experiments/seeds_nodup/tgn_s5/window_scores_test_b1.npz"
   ]
 }

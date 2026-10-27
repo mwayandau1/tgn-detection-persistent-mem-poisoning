@@ -9,7 +9,8 @@ the temporal components are isolated as the source of the signal, using the thes
 published baseline rather than a hand-built feature set.
 
 The same comparison on data/raw/llm_generated was uninformative: every model there reaches
-1.000 from record content alone (see leak_mechanism.py), so nothing was being ablated.
+1.000 from record content alone (see archive/llm_benchmark/leak_mechanism.py), so nothing was
+being ablated.
 
 WHAT IS REMOVED, AND WHAT IS DELIBERATELY NOT
 ---------------------------------------------

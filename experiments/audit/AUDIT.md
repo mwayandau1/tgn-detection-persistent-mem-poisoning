@@ -1,5 +1,14 @@
 # Audit of the reported figures (brief v2, items E10 and E7)
 
+> **Cleanup of 27 October 2026.** Several files this audit cites were removed from the tree or
+> moved: the notebooks, `generate_eval_results.py`, `ood_evaluator.py`,
+> `train_static_baseline.py`, `train_ablation_meanpool.py`, `freeze_reference.py`,
+> `reported_results.json` and the old result files are in Git under the tag `pre-cleanup`;
+> the LLM-benchmark scripts are in `archive/llm_benchmark/`; six superseded run folders
+> (`run_burst2k_base_s1`, `_gated`, `_meanpool`, `_nostruct`, `_static_attn`, `_static_mean`)
+> are in `data/legacy_runs/` outside Git, checkpoints included. The memory-slot default is now
+> `per_window`; pass `--memory-slots shared` to re-score a pre-audit checkpoint as it was.
+
 Audited 14 October 2026 against `MosesWinboodAyandauTGNN-3.docx` (13 Oct 2026) and the
 repository at commit `600f647` (branch `benchmark-hardening`). Every figure below was traced to
 an artefact on disk and, where possible, recomputed from that artefact. Where no artefact

@@ -3,7 +3,8 @@ Calibrated detection latency: how many snapshots after a poison first appears do
 detector actually fire, at a stated false-alarm rate?
 ==========================================================================================
 
-The existing implementation in generate_eval_results.py cannot answer this. It hard-codes
+The earlier implementation (generate_eval_results.py, removed; see tag pre-cleanup) could not
+answer this. It hard-coded
 
     threshold = 0.5
 
@@ -38,8 +39,8 @@ This replaces it with four changes:
     fire earlier are counted separately as pre-onset false alarms.
 
 Usage:
-    python -m src.experiments.detection_latency --data data/raw/ap_sequences \
-        --run-dir experiments/run_ap_base
+    python -m src.experiments.detection_latency --data data/raw/ap_burst2k_nodup \
+        --run-dir experiments/seeds_nodup/tgn_s1 --cached
 """
 
 import argparse
@@ -149,10 +150,11 @@ def main():
     ap.add_argument("--cluster-k", type=int, default=12)
     ap.add_argument("--target-fpr", type=float, nargs="+", default=[0.05, 0.10])
     ap.add_argument("--n-boot", type=int, default=2000)
-    ap.add_argument("--memory-slots", choices=["shared", "per_window"], default="shared",
+    ap.add_argument("--memory-slots", choices=["shared", "per_window"], default="per_window",
                     help="Node-memory bank addressing for batched windows (see "
                          "TGNDetector.memory_slots). 'per_window' at any batch size equals "
-                         "batch size 1; 'shared' reproduces the run_burst2k_* figures.")
+                         "batch size 1 and is the default; 'shared' is the legacy setting of the "
+                         "pre-freeze run_burst2k_* runs.")
     ap.add_argument("--batch-size", type=int, default=None,
                     help="Scoring batch size; defaults to the training batch size (4).")
     ap.add_argument("--cached", action="store_true",

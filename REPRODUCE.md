@@ -1,104 +1,94 @@
-# Reproducing the reported results
+# Reproducing the results freeze
 
-Every number reported for the hardened benchmark comes from the three commands below.
-All of them run on CPU or a single small GPU; none of them call an external API.
+`experiments/audit/RESULTS_FREEZE.md` is built in four stages. Times are for one NVIDIA Quadro
+P2000 (4 GB); about 140 GPU-hours in all. Every long command is resumable: re-run it after an
+interruption and it skips what is finished. Commands assume the setup in `README.md` and are run
+from the repository root.
 
-Seeds are fixed at 42 (`configs/default.yaml -> dataset.seed`, and `--seed` on both CLIs).
-Dataset generation is fully deterministic. Training and evaluation are deterministic on CPU;
-on GPU the non-deterministic scatter kernels used by PyTorch Geometric mean results are close
-but not bit-identical.
+**What reproduces exactly and what does not.** Every summary script reads saved per-window scores
+and is deterministic: run on the same scores, it writes the same file byte for byte (each was
+checked by running it twice). Training on a GPU is not bit-reproducible, so retrained models give
+slightly different scores; expect seed means within about one seed standard deviation (0.014 on
+the main benchmark).
 
-Measured: re-running evaluation on the *same* checkpoint and the *same* data in a fresh
-process moved graph AUROC by +0.007, graph AP by +0.004 and node AP by +0.014. Treat
-differences below about 0.02 as noise rather than signal, and do not report more than two
-decimal places for a single run.
+## Stage 0. Knowledge base
 
-## 1. Generate the benchmark dataset
-
-```bash
-python -m src.data_generation.synthetic_generator \
-  --output data/raw/synthetic_gap0125 \
-  --difficulty benchmark \
-  --num-sequences 300 \
-  --seed 42
+```
+mkdir -p data/raw/agentpoison
+curl -L -o data/raw/agentpoison/strategyqa_train_filtered.json https://raw.githubusercontent.com/AI-secure/AgentPoison/master/ReAct/database/strategyqa_train_filtered.json
 ```
 
-`--difficulty benchmark` expands to `topic_similarity=0.59`, `coherence=0.715`,
-`session_length=12`, `retrieval_bias=0.0`. The generator prints a separability report and
-writes it to `generation_report.json`; the value to check is
-`coherence_gap = 0.1248`.
+## Stage 1. The earlier benchmark, ap_burst2k (needed for the duplicates comparison)
 
-Difficulty is controlled by the **coherence gap**: how much more similar the attacker's
-planted records are to each other than ordinary same-topic records are to each other.
-Raise `--coherence` to make the attack easier to spot, lower it to make it harder. Do not
-calibrate on `density_gap` — it thresholds the same quantity and discards the magnitude
-the detector actually reads.
+```
+python -m src.data_generation.agentpoison_sequences --output data/raw/ap_burst2k --num-sequences 2000 --matched-control 1.0 --benign-spread 120 --attack-spread-mult 1.0 --seed 42
+python -m src.data_generation.cached_dataset build --data data/raw/ap_burst2k
+python -m src.experiments.sequence_eval --data data/raw/ap_burst2k --skip-model
 
-## 2. Train
+# 25 runs: detector, static GAT, memory only, aggregator only, size-matched static; seeds 1-5 (~45 h)
+python -m src.experiments.seed_queue --data data/raw/ap_burst2k --root experiments/seeds --models core --keep-awake
 
-```bash
-python -m src.models.train \
-  --data data/raw/synthetic_gap0125 \
-  --output experiments/run_gap0125_struct \
-  --structural-features \
-  --skip-phase1 \
-  --select-by auroc \
-  --epochs-supervised 40 \
-  --seed 42
+# the single checkpoint the pre-audit thesis reported, trained the legacy way (~3.5 h)
+python -m src.models.train --data data/raw/ap_burst2k --output experiments/run_burst2k_base --structural-features --skip-phase1 --epochs-supervised 12 --seed 42 --memory-slots shared --cached
+python -m src.experiments.score_windows --data data/raw/ap_burst2k --run-dir experiments/run_burst2k_base --cached --split test --batch-size 1 --node-scores --output experiments/audit/base_test_b1.npz
+
+# summaries for this benchmark
+python -m src.experiments.seed_summary --root experiments/seeds --output experiments/seeds/summary.json
 ```
 
-The four non-default flags all matter:
+`experiments/run_burst2k_base` is committed with its scores, so this last block can be skipped
+unless you want to retrain it.
 
-| flag | why |
+## Stage 2. R1, the duplicates study (~15 h)
+
+Builds `ap_burst2k_nodup`, its cache and features, trains the detector and the static GAT on it
+(seeds 1-3), scores every model on both benchmarks and writes `experiments/duplicates/SUMMARY.md`.
+
+```
+python -m src.experiments.duplicates_study run --seeds 3
+```
+
+## Stage 3. Everything on the main benchmark (~80 h)
+
+Seeds 4-5 of the detector and static GAT, then the R2 rebuild (record-level metrics, probes,
+Figures 4.1 to 4.3, robustness sweeps), then five seeds of the five ablations, then the latency
+baseline and the summaries, each run twice and compared. Progress: `experiments/seeds_nodup/PLAN.md`.
+
+```
+python -m src.experiments.main_benchmark_plan
+```
+
+## Stage 4. Remaining freeze items (~40 min)
+
+```
+# main-benchmark seeds 4 and 5 scored on the earlier benchmark, then the R1 summary with five seeds
+python -m src.experiments.score_windows --data data/raw/ap_burst2k --run-dir experiments/seeds_nodup/tgn_s4 --cached --split test --batch-size 4 --output experiments/duplicates/scores/tgn_s4_nodup_on_dup.npz
+python -m src.experiments.score_windows --data data/raw/ap_burst2k --run-dir experiments/seeds_nodup/tgn_s5 --cached --split test --batch-size 4 --output experiments/duplicates/scores/tgn_s5_nodup_on_dup.npz
+python -m src.experiments.duplicates_study summarize
+
+# Table 3.7 position control, Table 4.4 unsupervised rows, Table 4.11 timings
+python -m src.experiments.benchmark_gate --data data/raw/ap_burst2k_nodup --split test --max-sequences 500 --output experiments/rebuild/table_3_7_gate_nodup.json
+python -m src.experiments.unsupervised_baselines --data data/raw/ap_burst2k_nodup --output experiments/rebuild/table_4_4_unsupervised_nodup.json
+python -m src.experiments.compute_profile --data data/raw/ap_burst2k_nodup --run-dir experiments/seeds_nodup/tgn_s1 --output experiments/rebuild/table_4_11_profile_nodup.json
+
+# Figures 4.4 to 4.7
+python -m src.experiments.rebuild sweep-figures
+```
+
+## Where each table comes from
+
+| Thesis item | File |
 |---|---|
-| `--structural-features` | Appends per-node degree and edge-weight statistics. `GATConv` normalises attention with a softmax, so its output is a convex combination of neighbours and it cannot count them. Without this the same run reaches 0.559 instead of 1.000 on the easy dataset. |
-| `--skip-phase1` | The contrastive phase does not learn at `batch_size: 4` (see the analysis document, §4c.4). Skipping it halves wall-clock time and changes no reported metric. |
-| `--select-by auroc` | Validation loss and validation AUROC diverge once overfitting starts, so loss-based checkpoint selection can save the worst model by the metric being reported. |
-| `--epochs-supervised 40` | The config default of 10 stops while validation AUROC is still climbing. On the easy dataset the transition happens at epochs 8-10 — right where the default cuts off. |
+| Tables 4.1, 4.2, 4.3, validation against test | `experiments/seeds_nodup/seed_tables.json` |
+| Table 4.5, headline intervals, noise floor | `experiments/seeds_nodup/summary.json` |
+| Oracle comparison | `experiments/seeds_nodup/oracle_comparison_5seeds.json` |
+| Table 4.4 | `experiments/rebuild/table_4_4_*.json` |
+| Table 4.6 | `experiments/rebuild/table_4_6_probes.json` |
+| Tables 4.7 to 4.10 | `experiments/rebuild/tables_4_7_to_4_10_sweeps.json` |
+| Table 4.11 | `experiments/rebuild/table_4_11_profile_nodup.json` |
+| Table 3.7 | `experiments/rebuild/table_3_7_gate_nodup.json`, `probes_raw.json`, `data/raw/ap_burst2k_nodup/sequence_eval_baselines.json` |
+| Duplicates finding | `experiments/duplicates/summary.json` |
+| Figures 4.1 to 4.7 | `experiments/rebuild/figures/` (each PNG has a JSON beside it) |
 
-Roughly 25 minutes on a Quadro P2000. `training_history.json` records the per-epoch curves
-and a `selection` block naming the epoch that was saved (epoch 33, val AUROC 0.904 in the
-committed run).
-
-## 3. Evaluate
-
-```bash
-python -m src.experiments.generate_eval_results \
-  --data data/raw/synthetic_gap0125 \
-  --run-dir experiments/run_gap0125_struct \
-  --checkpoint phase2_best.pt \
-  --structural-features \
-  --output experiments/eval_gap0125_struct.json
-```
-
-`--structural-features` must match the training run or the node feature width will not line up.
-
-## Optional: forecast difficulty before training
-
-```bash
-python -m src.experiments.separability_probe --data data/raw/synthetic_gap0125
-```
-
-Fits a logistic regression on hand-crafted structural and content features. Runs in seconds
-and predicted 0.9977 against a measured 0.9967 on the easy dataset, so it is worth running
-on any newly generated benchmark before committing to a training run. A high probe AUROC
-means the dataset has a cheap shortcut and the GNN is not being tested.
-
-## What the committed run produced
-
-`experiments/eval_gap0125_struct.json`, on a test split of **30 sequences (14 poisoned)**:
-
-| metric | value |
-|---|---|
-| graph AUROC | 0.889 |
-| graph average precision | 0.875 |
-| graph best F1 | 0.774 |
-| FPR at TPR 0.9 | 0.369 |
-| node AUROC | 0.942 |
-| node average precision | 0.650 |
-| mean detection latency | 3.25 snapshots |
-
-Thirty test sequences is a small sample. Windows within a sequence overlap heavily, so the
-effective sample size is the sequence count, not the window count, and the standard error on
-graph AUROC is roughly ±0.07. Report the difficulty curve rather than this single point
-wherever possible.
+To re-check the summaries without retraining, re-run the summary commands above on the saved
+scores and compare the output with the committed JSON; they should be identical.

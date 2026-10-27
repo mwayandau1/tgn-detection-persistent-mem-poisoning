@@ -9,3 +9,13 @@ data/
 experiments/**/*.pt
 experiments/*.pt
 
+
+# personal copies and hand-over bundles
+thesis-pdf/
+handover_v3/
+handover_v3.zip
+
+# large or regenerable run outputs: summaries (.json, .md) are committed, scores and logs are not
+experiments/**/*.npz
+experiments/**/*.log
+!experiments/rebuild/freeze_extras.log

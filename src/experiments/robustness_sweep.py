@@ -2,7 +2,8 @@
 The four input-degradation sweeps of Section 4.9, on the full test partition (E8).
 =================================================================================
 
-ood_evaluator.py, which produced Tables 4.7 to 4.10, scored a random sample of 1,100 test
+ood_evaluator.py (removed; see tag pre-cleanup), which produced the pre-freeze Tables 4.7 to
+4.10, scored a random sample of 1,100 test
 windows (a figure that survives only in a console log), with batch size 4 and shared memory
 slots (see score_windows.py), under a single random draw per condition. Its five no-op
 conditions disagree on FPR at 90% TPR by up to 0.035, which is larger than several of the

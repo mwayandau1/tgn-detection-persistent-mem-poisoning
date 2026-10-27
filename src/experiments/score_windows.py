@@ -144,8 +144,9 @@ def main():
     ap.add_argument("--cpu", action="store_true")
     ap.add_argument("--cached", action="store_true",
                     help="Read from the verified per-sequence cache (bit-identical tensors).")
-    ap.add_argument("--memory-slots", choices=["shared", "per_window"], default="shared",
-                    help="Bank addressing; irrelevant at batch size 1, where both agree.")
+    ap.add_argument("--memory-slots", choices=["shared", "per_window"], default="per_window",
+                    help="Bank addressing; 'shared' is the legacy setting. Irrelevant at batch "
+                         "size 1, where both agree.")
     args = ap.parse_args()
 
     cfg = yaml.safe_load(open(args.config))

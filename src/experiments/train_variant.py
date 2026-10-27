@@ -5,8 +5,8 @@ Train any detector variant under the detector's recipe, then score it at batch s
 One entry point for the multi-seed study (E2) and the component ablations (E3), so every
 configuration is trained by the same Trainer -- same loss, optimiser, schedule, augmentation,
 epoch budget and validation-AUROC checkpoint rule -- and differs only in `--model` and
-`--seed`. train_static_baseline.py and train_ablation_meanpool.py remain as the record of how
-the run_burst2k_* checkpoints were produced; this does not change what they do.
+`--seed`. It replaces train_static_baseline.py and train_ablation_meanpool.py, which produced
+the pre-freeze run_burst2k_* checkpoints (removed; see tag pre-cleanup).
 
 After training, the selected checkpoint is scored on the validation and test splits at batch
 size 1 (see score_windows.py for why the batch size matters), and the per-window scores are

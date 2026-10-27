@@ -31,11 +31,13 @@ Two poison modes, and the contrast between them is the point:
       rather than asserted.
 
 Output matches the existing snapshot format, so `MemoryTrajectoryDataset`, `train.py` and
-`generate_eval_results.py` consume it unchanged.
+the evaluation scripts consume it unchanged.
 
-Usage:
-    python -m src.data_generation.agentpoison_sequences --output data/raw/ap_sequences \
-        --num-sequences 300 --poison-mode placement
+Usage (the main benchmark of the thesis, ap_burst2k_nodup):
+    python -m src.data_generation.agentpoison_sequences --output data/raw/ap_burst2k_nodup \
+        --num-sequences 2000 --matched-control 1.0 --benign-spread 120 \
+        --attack-spread-mult 1.0 --seed 42 --no-duplicates
+Without --no-duplicates the same command builds the earlier ap_burst2k.
 """
 
 import argparse
@@ -287,7 +289,7 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--config", default="configs/default.yaml")
     ap.add_argument("--kb-dir", default="data/raw/agentpoison")
-    ap.add_argument("--output", default="data/raw/ap_sequences")
+    ap.add_argument("--output", default="data/raw/ap_custom")
     ap.add_argument("--num-sequences", type=int, default=300)
     ap.add_argument("--interactions-per-sequence", type=int, default=None)
     ap.add_argument("--poison-mode", choices=["placement", "trigger"], default="placement")

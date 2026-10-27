@@ -30,8 +30,8 @@ result:
     the nested pair, flagged as anti-conservative here for the same clustering reason.
 
 Usage:
-    python -m src.experiments.complementarity --data data/raw/ap_sequences \
-        --run-dir experiments/run_ap_base
+    python -m src.experiments.complementarity --data data/raw/ap_burst2k_nodup \
+        --run-dir experiments/seeds_nodup/tgn_s1
 """
 
 import argparse

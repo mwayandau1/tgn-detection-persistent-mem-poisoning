@@ -439,8 +439,8 @@ def write_run_config(output_dir: Path, args, config: dict, device) -> None:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", default="configs/default.yaml")
-    parser.add_argument("--data", default="data/raw/llm_generated")
-    parser.add_argument("--output", default="experiments/run_001")
+    parser.add_argument("--data", default="data/raw/ap_burst2k_nodup")
+    parser.add_argument("--output", default="experiments/run_custom")
     parser.add_argument("--skip-phase1", action="store_true")
     parser.add_argument("--holdout-attack-type", default=None,
                          help="Attack type name to exclude entirely from train/val, "
@@ -482,10 +482,11 @@ def main():
                              "gates: +771 parameters, and bit-identical to attention pooling at "
                              "initialisation, so the comparison isolates the information.")
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--memory-slots", choices=["shared", "per_window"], default="shared",
+    parser.add_argument("--memory-slots", choices=["shared", "per_window"], default="per_window",
                         help="How the node-memory bank is addressed when windows are batched; "
-                             "see TGNDetector.memory_slots. 'shared' reproduces every run up "
-                             "to run_burst2k_*; 'per_window' is the architecture as specified.")
+                             "see TGNDetector.memory_slots. 'per_window' (default) is the "
+                             "architecture as specified; 'shared' is the legacy setting of the "
+                             "pre-freeze run_burst2k_* runs.")
     parser.add_argument("--cached", action="store_true",
                         help="Read windows from the per-sequence cache "
                              "(src.data_generation.cached_dataset), which returns tensors "

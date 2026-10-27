@@ -193,10 +193,11 @@ def main():
     ap.add_argument("--cache", default=None,
                     help="Where to cache the per-sequence feature table; recomputing the "
                          "similarity matrices for every snapshot is the expensive part.")
-    ap.add_argument("--memory-slots", choices=["shared", "per_window"], default="shared",
+    ap.add_argument("--memory-slots", choices=["shared", "per_window"], default="per_window",
                     help="Node-memory bank addressing for batched windows (see "
                          "TGNDetector.memory_slots). 'per_window' at any batch size equals "
-                         "batch size 1; 'shared' reproduces the run_burst2k_* figures.")
+                         "batch size 1 and is the default; 'shared' is the legacy setting of the "
+                         "pre-freeze run_burst2k_* runs.")
     ap.add_argument("--batch-size", type=int, default=None,
                     help="Scoring batch size; defaults to the training batch size (4).")
     ap.add_argument("--n-boot", type=int, default=2000)
