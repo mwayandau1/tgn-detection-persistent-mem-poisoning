@@ -58,11 +58,11 @@ Read from each run's `run_config.json`, `training_history.json` and `variant.jso
 | Batch | 4 windows (sequences), shuffled; per-window memory slots |
 | Augmentation | Gaussian noise on the 384 embedding columns, probability 0.5, sigma drawn from U(0, 0.15); the coherence columns are computed from the clean embeddings |
 | Node features | 401 (397 without structural features; 391 without coherence features) |
-| Edge features | 2: similarity weight (0 on arrival edges) and arrival flag |
+| Edge features | 2: the pair's cosine similarity (on every edge) and an arrival flag (1 on arrival edges, 0 on similarity edges) |
 | Seeds | 1, 2, 3, 4, 5 for every configuration. Seed 1 of the detector and static GAT are the step 5 pilots, trained with validation scoring only and scored on test in phase A; seed 1 without coherence features is the step 4 pilot (`experiments/option3_sequence/tgn_s1`) |
 | Hardware and software | Quadro P2000 (4 GB), torch 2.5.1+cu121 |
 | Training time | 1.0 to 6.2 h per run. Exception: `meanpool_s3` records 14.8 h because the laptop slept for about 11.5 h during its second epoch (IMPROVEMENT.md, "Interruption"); its result is unaffected |
-| Code | Commit 2dbcdbc plus uncommitted working-tree changes (`src_dirty: true` in every run_config); committing this round's code fixes the provenance |
+| Code | Commit 2dbcdbc plus uncommitted working-tree changes (`src_dirty: true` in every run_config). Those changes were committed as 246f11e (3 November); `src/experiments/online_drift.py` in that commit was added after the runs and is descriptive only |
 
 ## 3. Headline: the configuration chosen by the step 5 rule
 
@@ -277,9 +277,9 @@ arrival-edge weights and coherence columns are computed from them too.
 | Full noise 0.30 | 0.5021 (0.0116) | 0.4067 | 0.0000 | 0.8978 | 0.5524 | 0.0265 |
 
 Under the freeze 1 rule the detector degrades smoothly (0.9088 to 0.8237 at 0.30). When the
-noise reaches the coherence columns it is near chance from 0.15 and every score falls below
-0.5 from 0.10 (F1 0): the features depend on precise cosines between records, and the model
-never saw noisy coherence columns in training.
+noise reaches the coherence columns it is near chance from 0.15, and from 0.10 no poisoned
+sequence scores above 0.5 (F1 0): the features depend on precise cosines between records, and
+the model never saw noisy coherence columns in training.
 
 ### Table 4.11 Inference cost
 Source `R2/table_4_11_profile.json` (checkpoint `S2/tgn_s1/phase2_best.pt`, 680,515 parameters,
@@ -413,8 +413,8 @@ of freeze 1 coincide with the sequence lines here). Figure 4.4b plots the extra 
   bursts; no benchmark with spread-out injections was run, so robustness to that attacker is
   unmeasured.
 * **Inference timings:** measured once.
-* **Code provenance:** all runs used uncommitted code on top of 2dbcdbc; the commit awaits
-  Moses's confirmation.
+* **Code provenance:** all runs used uncommitted code on top of 2dbcdbc, committed as 246f11e
+  on 3 November.
 
 ## 11. Reproducibility checks (each run twice from a fresh process, outputs compared)
 
