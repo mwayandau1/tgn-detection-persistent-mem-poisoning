@@ -299,7 +299,8 @@ class TGNDetector(nn.Module):
             hidden_dim=gat_hidden,
             num_heads=gat_heads,
             dropout=dropout,
-            edge_dim=1,
+            # 2 with arrival edges: [weight, is_arrival_edge] (dataset.with_arrival_edges)
+            edge_dim=model_cfg.get("edge_dim", 1),
         )
         # Opt-in so each change stays a clean ablation against the published numbers.
         # `scale_readout: true` is kept as an alias for readout "scale" so the checkpoints

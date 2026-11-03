@@ -6,6 +6,7 @@ Loads sequences of graph snapshots and prepares them for TGN training.
 import json
 import numpy as np
 import torch
+import torch.nn.functional as F
 from torch.utils.data import Dataset
 from torch_geometric.data import Data, Batch
 from pathlib import Path
@@ -33,6 +34,102 @@ _DEFAULT_META_FEATURES = 3  # recency, retrieval_freq, retrieval_recency
 _STRUCTURAL_FEATURES = 4
 
 
+def window_is_stale(graphs: List[Data]) -> bool:
+    """A positive window in which no injected record arrives.
+
+    A window is labelled positive once any injected record is present, but node memory is
+    reset at every window, so when the injection was already complete at the window's first
+    snapshot the window holds no evidence of its arrival: the cluster is there, exactly as
+    the matched benign cluster is in a clean sequence. On ap_burst2k_nodup 17% of positive
+    windows are like this. --window-target arrival leaves them out of the window loss.
+    """
+    first, last = graphs[0].node_labels, graphs[-1].node_labels
+    return bool(int(last.sum()) > 0 and int(first.sum()) == int(last.sum()))
+
+
+def with_arrival_edges(data: Data, emb_dim: int, window: int) -> Data:
+    """Join every two records that arrived at most `window` interactions apart.
+
+    Similarity edges exist only above cosine 0.6. On ap_burst2k_nodup only 25% of the pairs
+    inside an attack burst clear that threshold (mean pairwise cosine 0.43, against 0.20 for
+    an ordinary run of records), so the graph shows three quarters of a burst as unconnected
+    and attention cannot measure how tight it is. Arrival edges connect records that arrived
+    close together whatever their similarity, carrying their cosine as the weight. Node i
+    arrived at interaction i, so arrival distance is index distance.
+
+    Edge attributes become [weight, is_arrival_edge] for every edge (model edge_dim 2). The
+    structural node features are unchanged: they are computed from the similarity edges.
+    """
+    n = data.x.size(0)
+    sim_attr = torch.cat([data.edge_attr, torch.zeros((data.edge_attr.size(0), 1))], dim=1)
+    if n < 2:
+        data.edge_attr = sim_attr
+        return data
+    u = F.normalize(data.x[:, :emb_dim].float(), dim=1)
+    src, dst = [], []
+    for d in range(1, min(window, n - 1) + 1):
+        i = torch.arange(n - d)
+        src += [i, i + d]
+        dst += [i + d, i]
+    src, dst = torch.cat(src), torch.cat(dst)
+    cos = (u[src] * u[dst]).sum(dim=1, keepdim=True)
+    data.edge_index = torch.cat([data.edge_index, torch.stack([src, dst])], dim=1)
+    data.edge_attr = torch.cat([sim_attr, torch.cat([cos, torch.ones_like(cos)], dim=1)])
+    return data
+
+
+COHERENCE_BLOCKS = (5, 10, 15, 20)
+COHERENCE_NEIGHBOURS = (5, 10)
+COHERENCE_DIM = 2 * len(COHERENCE_BLOCKS) + len(COHERENCE_NEIGHBOURS)
+
+
+def with_coherence_features(data: Data, emb_dim: int) -> Data:
+    """Append per-record arrival-coherence columns: how alike a record is to those that arrived
+    around it.
+
+    An attack is k consecutive records drawn from one small neighbourhood, so a run of records
+    that are unusually alike is the signal; the ceiling check (src/experiments/ceiling_check.py)
+    reaches test AUROC 0.83 from block statistics of exactly this kind, against 0.66 for the
+    detector. These columns hand the per-record version to the encoder. Computed from the
+    embeddings and arrival order only (node i arrived at interaction i), as the detector sees them.
+
+    For each block length L in COHERENCE_BLOCKS: the highest mean pairwise cosine over the runs of
+    L consecutive records that contain the record (the whole snapshot when it holds fewer than L),
+    and the same minus its median over the snapshot, since ordinary sessions are alike too.
+    For each k in COHERENCE_NEIGHBOURS: the mean cosine to the records that arrived at most k
+    interactions before or after it.
+    """
+    data.x = torch.cat([data.x, coherence_columns(data.x, emb_dim)], dim=1)
+    return data
+
+
+def coherence_columns(x: torch.Tensor, emb_dim: int) -> torch.Tensor:
+    """The COHERENCE_DIM columns with_coherence_features appends, for node features x."""
+    n = x.size(0)
+    cols = torch.zeros((n, COHERENCE_DIM))
+    if n >= 2:
+        u = F.normalize(x[:, :emb_dim].float(), dim=1)
+        S = u @ u.T
+        S.fill_diagonal_(0.0)
+        P = F.pad(S.cumsum(0).cumsum(1), (1, 0, 1, 0))
+        idx = torch.arange(n)
+        c = 0
+        for L in COHERENCE_BLOCKS:
+            L = min(L, n)
+            s = torch.arange(n - L + 1)
+            block = (P[s + L, s + L] - P[s, s + L] - P[s + L, s] + P[s, s]) / (L * (L - 1))
+            inside = (s[None, :] <= idx[:, None]) & (idx[:, None] <= s[None, :] + L - 1)
+            best = block[None, :].expand(n, -1).masked_fill(~inside, -2.0).max(dim=1).values
+            cols[:, c], cols[:, c + 1] = best, best - best.median()
+            c += 2
+        dist = (idx[:, None] - idx[None, :]).abs()
+        for k in COHERENCE_NEIGHBOURS:
+            band = ((dist >= 1) & (dist <= k)).float()
+            cols[:, c] = (S * band).sum(1) / band.sum(1).clamp(min=1.0)
+            c += 1
+    return cols
+
+
 class MemoryTrajectoryDataset(Dataset):
     """
     Dataset of memory graph trajectories.
@@ -42,10 +139,14 @@ class MemoryTrajectoryDataset(Dataset):
     def __init__(self, data_dir: str, split: str = "train", temporal_window: int = 10,
                  embedding_dim: int = _DEFAULT_EMBEDDING_DIM,
                  sequence_ids: Optional[List[str]] = None,
-                 structural_features: bool = False):
+                 structural_features: bool = False, arrival_window: int = 0,
+                 coherence_features: bool = False):
         self.data_dir = Path(data_dir)
         self.temporal_window = temporal_window
         self.structural_features = structural_features
+        self.embedding_dim = embedding_dim
+        self.arrival_window = arrival_window
+        self.coherence_features = coherence_features
         self.feature_dim = embedding_dim + _DEFAULT_META_FEATURES
         if structural_features:
             self.feature_dim += _STRUCTURAL_FEATURES
@@ -94,6 +195,11 @@ class MemoryTrajectoryDataset(Dataset):
             else:
                 # Pad with empty graph if not enough snapshots
                 graphs.append(self._empty_graph())
+        if self.arrival_window > 0:
+            graphs = [with_arrival_edges(g, self.embedding_dim, self.arrival_window)
+                      for g in graphs]
+        if self.coherence_features:
+            graphs = [with_coherence_features(g, self.embedding_dim) for g in graphs]
 
         # The label is from the last snapshot in the window
         last_graph = graphs[-1]
@@ -106,6 +212,7 @@ class MemoryTrajectoryDataset(Dataset):
             "node_labels": node_labels,    # Per-node labels at final timestep
             "sequence_id": seq_id,
             "window_start": start,
+            "stale": window_is_stale(graphs),
         }
 
     def _load_snapshot(self, path: Path) -> Data:
@@ -211,5 +318,6 @@ def collate_trajectories(batch: List[dict]) -> dict:
     return {
         "graphs": batched_graphs,
         "graph_labels": graph_labels,
+        "stale": torch.tensor([item.get("stale", False) for item in batch], dtype=torch.bool),
         "sequence_ids": [item["sequence_id"] for item in batch],
     }

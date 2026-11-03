@@ -1,0 +1,257 @@
+{
+  "n_test": 500,
+  "n_seeds": 5,
+  "detector": {
+    "auroc": {
+      "per_seed": [
+        0.9110166666666667,
+        0.91135,
+        0.9089,
+        0.9033333333333332,
+        0.9093
+      ],
+      "mean": 0.9087799999999999,
+      "sd": 0.003223296276932862
+    },
+    "ap": {
+      "per_seed": [
+        0.8950838454340674,
+        0.8958594974973976,
+        0.8943954886063068,
+        0.8889827004229587,
+        0.8935982013180437
+      ],
+      "mean": 0.8935839466557548,
+      "sd": 0.002704537779631109
+    }
+  },
+  "oracles": {
+    "LR, final-state (6)": {
+      "auroc": 0.5513666666666668,
+      "ap": 0.4368539347493381,
+      "detector_minus_auroc": {
+        "delta": 0.3574133333333332,
+        "ci95": [
+          0.30172103435533504,
+          0.41123942847539274
+        ],
+        "significant": true
+      },
+      "detector_minus_ap": {
+        "delta": 0.45673001190641677,
+        "ci95": [
+          0.3889678901507513,
+          0.5120735409659243
+        ],
+        "significant": true
+      }
+    },
+    "GB, final-state (6)": {
+      "auroc": 0.532,
+      "ap": 0.4364138546969321,
+      "detector_minus_auroc": {
+        "delta": 0.37677999999999995,
+        "ci95": [
+          0.32149023325770926,
+          0.43176462799977255
+        ],
+        "significant": true
+      },
+      "detector_minus_ap": {
+        "delta": 0.4571700919588227,
+        "ci95": [
+          0.39032907622074653,
+          0.5111392888039638
+        ],
+        "significant": true
+      }
+    },
+    "LR, temporal (7)": {
+      "auroc": 0.6594,
+      "ap": 0.5732176385758468,
+      "detector_minus_auroc": {
+        "delta": 0.24938000000000002,
+        "ci95": [
+          0.19500667010066702,
+          0.30099625173850575
+        ],
+        "significant": true
+      },
+      "detector_minus_ap": {
+        "delta": 0.320366308079908,
+        "ci95": [
+          0.2503295107320748,
+          0.38313516398298675
+        ],
+        "significant": true
+      }
+    },
+    "GB, temporal (7)": {
+      "auroc": 0.6561166666666667,
+      "ap": 0.5589290059825445,
+      "detector_minus_auroc": {
+        "delta": 0.2526633333333333,
+        "ci95": [
+          0.2022310871926387,
+          0.3058863712751459
+        ],
+        "significant": true
+      },
+      "detector_minus_ap": {
+        "delta": 0.33465494067321033,
+        "ci95": [
+          0.2611403823668498,
+          0.39727377269341096
+        ],
+        "significant": true
+      }
+    },
+    "LR, all (13)": {
+      "auroc": 0.6863666666666666,
+      "ap": 0.6034755699671587,
+      "detector_minus_auroc": {
+        "delta": 0.22241333333333344,
+        "ci95": [
+          0.17090192185779485,
+          0.2755238043315914
+        ],
+        "significant": true
+      },
+      "detector_minus_ap": {
+        "delta": 0.2901083766885962,
+        "ci95": [
+          0.2195861121159198,
+          0.3545800018852416
+        ],
+        "significant": true
+      }
+    },
+    "GB, all (13)": {
+      "auroc": 0.66425,
+      "ap": 0.5616985462781001,
+      "detector_minus_auroc": {
+        "delta": 0.24452999999999997,
+        "ci95": [
+          0.19459328336783074,
+          0.29697157820819026
+        ],
+        "significant": true
+      },
+      "detector_minus_ap": {
+        "delta": 0.3318854003776547,
+        "ci95": [
+          0.2589813117724272,
+          0.3955549195421119
+        ],
+        "significant": true
+      }
+    },
+    "LR, nine features, final snapshot": {
+      "auroc": 0.5353166666666667,
+      "ap": 0.45490900840543036,
+      "detector_minus_auroc": {
+        "delta": 0.3734633333333333,
+        "ci95": [
+          0.31263037211197714,
+          0.4319392726514137
+        ],
+        "significant": true
+      },
+      "detector_minus_ap": {
+        "delta": 0.4386749382503245,
+        "ci95": [
+          0.36763104259175483,
+          0.5013245484729495
+        ],
+        "significant": true
+      }
+    },
+    "LR, nine features, max over windows": {
+      "auroc": 0.5402666666666667,
+      "ap": 0.4678000514445563,
+      "detector_minus_auroc": {
+        "delta": 0.3685133333333333,
+        "ci95": [
+          0.3099687007138662,
+          0.4232271208348421
+        ],
+        "significant": true
+      },
+      "detector_minus_ap": {
+        "delta": 0.4257838952111985,
+        "ci95": [
+          0.35350793661538377,
+          0.48573346537920514
+        ],
+        "significant": true
+      }
+    },
+    "LR, coherence (40)": {
+      "auroc": 0.8351000000000001,
+      "ap": 0.7891069828226254,
+      "detector_minus_auroc": {
+        "delta": 0.07367999999999993,
+        "ci95": [
+          0.03508766128209054,
+          0.11127346250255526
+        ],
+        "significant": true
+      },
+      "detector_minus_ap": {
+        "delta": 0.10447696383312946,
+        "ci95": [
+          0.056167844464194726,
+          0.15307404174148564
+        ],
+        "significant": true
+      }
+    },
+    "GB, coherence (40)": {
+      "auroc": 0.8034333333333332,
+      "ap": 0.7773496734554955,
+      "detector_minus_auroc": {
+        "delta": 0.10534666666666677,
+        "ci95": [
+          0.06443799820533218,
+          0.14389668199344793
+        ],
+        "significant": true
+      },
+      "detector_minus_ap": {
+        "delta": 0.11623427320025928,
+        "ci95": [
+          0.0724501422115699,
+          0.1597006406344462
+        ],
+        "significant": true
+      }
+    },
+    "LR, all (13) + coherence (40)": {
+      "auroc": 0.8814666666666667,
+      "ap": 0.8416089298362541,
+      "detector_minus_auroc": {
+        "delta": 0.027313333333333255,
+        "ci95": [
+          -0.007012947544955687,
+          0.059357969941678496
+        ],
+        "significant": false
+      },
+      "detector_minus_ap": {
+        "delta": 0.051975016819500695,
+        "ci95": [
+          0.010221779844444539,
+          0.09230885507342253
+        ],
+        "significant": true
+      }
+    }
+  },
+  "detector_inputs": [
+    "E:\\BackUp\\PRJTS\\msearch\\impl\\AI-poisoned\\experiments\\seeds_coherence\\tgn_s1\\window_scores_test_b1.npz",
+    "E:\\BackUp\\PRJTS\\msearch\\impl\\AI-poisoned\\experiments\\seeds_coherence\\tgn_s2\\window_scores_test_b1.npz",
+    "E:\\BackUp\\PRJTS\\msearch\\impl\\AI-poisoned\\experiments\\seeds_coherence\\tgn_s3\\window_scores_test_b1.npz",
+    "E:\\BackUp\\PRJTS\\msearch\\impl\\AI-poisoned\\experiments\\seeds_coherence\\tgn_s4\\window_scores_test_b1.npz",
+    "E:\\BackUp\\PRJTS\\msearch\\impl\\AI-poisoned\\experiments\\seeds_coherence\\tgn_s5\\window_scores_test_b1.npz"
+  ]
+}

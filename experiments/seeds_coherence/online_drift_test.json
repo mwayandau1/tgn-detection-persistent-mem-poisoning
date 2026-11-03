@@ -1,0 +1,496 @@
+{
+  "split": "test",
+  "runs": [
+    "experiments/seeds_coherence/tgn_s1",
+    "experiments/seeds_coherence/tgn_s2",
+    "experiments/seeds_coherence/tgn_s3",
+    "experiments/seeds_coherence/tgn_s4",
+    "experiments/seeds_coherence/tgn_s5"
+  ],
+  "pooled_online_auroc": {
+    "mean": 0.8248346890876086,
+    "per_run": [
+      0.8226688104599009,
+      0.8206758221304127,
+      0.8268895549017983,
+      0.821951477082528,
+      0.8319877808634031
+    ]
+  },
+  "mean_over_runs": {
+    "9": {
+      "auroc_sequence_label": 0.6330833333333332,
+      "auroc_window_label": 0.733185384798288,
+      "clean_median": 0.3516052670776844,
+      "clean_p95": 0.9902242296934128,
+      "poisoned_median": 0.7861236661672593
+    },
+    "10": {
+      "auroc_sequence_label": 0.6778133333333335,
+      "auroc_window_label": 0.7546868767451136,
+      "clean_median": 0.16499566659331322,
+      "clean_p95": 0.9898459070920944,
+      "poisoned_median": 0.8010324269533158
+    },
+    "11": {
+      "auroc_sequence_label": 0.7173233333333334,
+      "auroc_window_label": 0.7830497509219124,
+      "clean_median": 0.14270021468400956,
+      "clean_p95": 0.9909806513786317,
+      "poisoned_median": 0.8401770323514939
+    },
+    "12": {
+      "auroc_sequence_label": 0.7546816666666667,
+      "auroc_window_label": 0.7878511725098677,
+      "clean_median": 0.09360267259180546,
+      "clean_p95": 0.9901668512821198,
+      "poisoned_median": 0.903262197971344
+    },
+    "13": {
+      "auroc_sequence_label": 0.7886266666666667,
+      "auroc_window_label": 0.8233287961282516,
+      "clean_median": 0.05504719316959381,
+      "clean_p95": 0.9892339074611665,
+      "poisoned_median": 0.9548279345035553
+    },
+    "14": {
+      "auroc_sequence_label": 0.8186366666666667,
+      "auroc_window_label": 0.8257302892796371,
+      "clean_median": 0.03118810150772333,
+      "clean_p95": 0.9864566093683242,
+      "poisoned_median": 0.9563751518726349
+    },
+    "15": {
+      "auroc_sequence_label": 0.8444833333333335,
+      "auroc_window_label": 0.8507847222222222,
+      "clean_median": 0.016638599522411823,
+      "clean_p95": 0.9791030049324035,
+      "poisoned_median": 0.9804670751094818
+    },
+    "16": {
+      "auroc_sequence_label": 0.86808,
+      "auroc_window_label": 0.8747860656290009,
+      "clean_median": 0.010406390996649861,
+      "clean_p95": 0.9779533565044405,
+      "poisoned_median": 0.9905905544757843
+    },
+    "17": {
+      "auroc_sequence_label": 0.8905233333333331,
+      "auroc_window_label": 0.8905233333333331,
+      "clean_median": 0.00789247821085155,
+      "clean_p95": 0.9716588735580445,
+      "poisoned_median": 0.9931116461753845
+    },
+    "18": {
+      "auroc_sequence_label": 0.9016566666666666,
+      "auroc_window_label": 0.9016566666666666,
+      "clean_median": 0.006278547132387758,
+      "clean_p95": 0.9425135213136674,
+      "poisoned_median": 0.9956868886947632
+    },
+    "19": {
+      "auroc_sequence_label": 0.9087799999999999,
+      "auroc_window_label": 0.9087799999999999,
+      "clean_median": 0.0049279391998425124,
+      "clean_p95": 0.8801905673742295,
+      "poisoned_median": 0.9957359671592713
+    }
+  },
+  "per_run": {
+    "tgn_s1": {
+      "9": {
+        "auroc_sequence_label": 0.6320666666666667,
+        "auroc_window_label": 0.7347758315500252,
+        "clean_median": 0.7042888402938843,
+        "clean_p95": 0.9977029651403427,
+        "poisoned_median": 0.9783629477024078
+      },
+      "10": {
+        "auroc_sequence_label": 0.6740333333333334,
+        "auroc_window_label": 0.7522231868415495,
+        "clean_median": 0.35012467205524445,
+        "clean_p95": 0.9974382609128952,
+        "poisoned_median": 0.9784834384918213
+      },
+      "11": {
+        "auroc_sequence_label": 0.7140333333333333,
+        "auroc_window_label": 0.77968989238964,
+        "clean_median": 0.2944347411394119,
+        "clean_p95": 0.9975532859563827,
+        "poisoned_median": 0.9845812916755676
+      },
+      "12": {
+        "auroc_sequence_label": 0.7486083333333333,
+        "auroc_window_label": 0.7792643758223048,
+        "clean_median": 0.2054845169186592,
+        "clean_p95": 0.9980024755001068,
+        "poisoned_median": 0.9907824993133545
+      },
+      "13": {
+        "auroc_sequence_label": 0.7824833333333333,
+        "auroc_window_label": 0.8144472171808832,
+        "clean_median": 0.08589599281549454,
+        "clean_p95": 0.9977605700492859,
+        "poisoned_median": 0.9921013414859772
+      },
+      "14": {
+        "auroc_sequence_label": 0.81345,
+        "auroc_window_label": 0.8205119115144639,
+        "clean_median": 0.03331267461180687,
+        "clean_p95": 0.9974135488271714,
+        "poisoned_median": 0.9945072531700134
+      },
+      "15": {
+        "auroc_sequence_label": 0.83975,
+        "auroc_window_label": 0.8452256944444444,
+        "clean_median": 0.013431514147669077,
+        "clean_p95": 0.996764001250267,
+        "poisoned_median": 0.99680495262146
+      },
+      "16": {
+        "auroc_sequence_label": 0.8653,
+        "auroc_window_label": 0.8722458055387103,
+        "clean_median": 0.007111667422577739,
+        "clean_p95": 0.9977155953645707,
+        "poisoned_median": 0.9980638027191162
+      },
+      "17": {
+        "auroc_sequence_label": 0.8898666666666667,
+        "auroc_window_label": 0.8898666666666667,
+        "clean_median": 0.005439943401142955,
+        "clean_p95": 0.9973709523677826,
+        "poisoned_median": 0.9981686472892761
+      },
+      "18": {
+        "auroc_sequence_label": 0.90385,
+        "auroc_window_label": 0.90385,
+        "clean_median": 0.004081472521647811,
+        "clean_p95": 0.9947461545467376,
+        "poisoned_median": 0.9987402558326721
+      },
+      "19": {
+        "auroc_sequence_label": 0.9110166666666667,
+        "auroc_window_label": 0.9110166666666667,
+        "clean_median": 0.0034433903638273478,
+        "clean_p95": 0.9898851066827774,
+        "poisoned_median": 0.9988672435283661
+      }
+    },
+    "tgn_s2": {
+      "9": {
+        "auroc_sequence_label": 0.6411,
+        "auroc_window_label": 0.7432300335526141,
+        "clean_median": 0.19159360975027084,
+        "clean_p95": 0.9866270273923874,
+        "poisoned_median": 0.8091309666633606
+      },
+      "10": {
+        "auroc_sequence_label": 0.6848333333333333,
+        "auroc_window_label": 0.7579248691897981,
+        "clean_median": 0.10763619467616081,
+        "clean_p95": 0.9853345632553101,
+        "poisoned_median": 0.8012855648994446
+      },
+      "11": {
+        "auroc_sequence_label": 0.72135,
+        "auroc_window_label": 0.7836147592245153,
+        "clean_median": 0.0886753462255001,
+        "clean_p95": 0.9855283081531525,
+        "poisoned_median": 0.837843269109726
+      },
+      "12": {
+        "auroc_sequence_label": 0.7574666666666667,
+        "auroc_window_label": 0.7865103320176458,
+        "clean_median": 0.05781284719705582,
+        "clean_p95": 0.9840250313282013,
+        "poisoned_median": 0.9192380905151367
+      },
+      "13": {
+        "auroc_sequence_label": 0.79135,
+        "auroc_window_label": 0.8223495160314579,
+        "clean_median": 0.048457467928528786,
+        "clean_p95": 0.9835189312696457,
+        "poisoned_median": 0.9381582736968994
+      },
+      "14": {
+        "auroc_sequence_label": 0.8194833333333333,
+        "auroc_window_label": 0.8243406125921725,
+        "clean_median": 0.027969270944595337,
+        "clean_p95": 0.9789363533258438,
+        "poisoned_median": 0.9647043645381927
+      },
+      "15": {
+        "auroc_sequence_label": 0.84485,
+        "auroc_window_label": 0.8484548611111111,
+        "clean_median": 0.01805414166301489,
+        "clean_p95": 0.9712275505065918,
+        "poisoned_median": 0.969076931476593
+      },
+      "16": {
+        "auroc_sequence_label": 0.8677999999999999,
+        "auroc_window_label": 0.8734586618152416,
+        "clean_median": 0.011217051651328802,
+        "clean_p95": 0.9728647083044053,
+        "poisoned_median": 0.9800662696361542
+      },
+      "17": {
+        "auroc_sequence_label": 0.8914,
+        "auroc_window_label": 0.8914,
+        "clean_median": 0.008113212883472443,
+        "clean_p95": 0.9550834000110627,
+        "poisoned_median": 0.9834147989749908
+      },
+      "18": {
+        "auroc_sequence_label": 0.9033,
+        "auroc_window_label": 0.9033,
+        "clean_median": 0.006296073319390416,
+        "clean_p95": 0.8931896656751636,
+        "poisoned_median": 0.9892690777778625
+      },
+      "19": {
+        "auroc_sequence_label": 0.91135,
+        "auroc_window_label": 0.91135,
+        "clean_median": 0.0048702729400247335,
+        "clean_p95": 0.7729859769344332,
+        "poisoned_median": 0.9881822168827057
+      }
+    },
+    "tgn_s3": {
+      "9": {
+        "auroc_sequence_label": 0.6375833333333333,
+        "auroc_window_label": 0.7374177696758341,
+        "clean_median": 0.39720405638217926,
+        "clean_p95": 0.9969953089952469,
+        "poisoned_median": 0.9196775257587433
+      },
+      "10": {
+        "auroc_sequence_label": 0.6850166666666667,
+        "auroc_window_label": 0.7628757127102935,
+        "clean_median": 0.1663067787885666,
+        "clean_p95": 0.9959039449691772,
+        "poisoned_median": 0.9247440993785858
+      },
+      "11": {
+        "auroc_sequence_label": 0.72125,
+        "auroc_window_label": 0.7912272756679821,
+        "clean_median": 0.12290826812386513,
+        "clean_p95": 0.9960786491632462,
+        "poisoned_median": 0.95674267411232
+      },
+      "12": {
+        "auroc_sequence_label": 0.7569666666666667,
+        "auroc_window_label": 0.7951783917653432,
+        "clean_median": 0.08198512718081474,
+        "clean_p95": 0.9954509437084198,
+        "poisoned_median": 0.973006397485733
+      },
+      "13": {
+        "auroc_sequence_label": 0.7899666666666666,
+        "auroc_window_label": 0.8297602843315184,
+        "clean_median": 0.0599483996629715,
+        "clean_p95": 0.9941600799560547,
+        "poisoned_median": 0.9862000942230225
+      },
+      "14": {
+        "auroc_sequence_label": 0.8192833333333334,
+        "auroc_window_label": 0.8286124503686898,
+        "clean_median": 0.03806210681796074,
+        "clean_p95": 0.9941719204187394,
+        "poisoned_median": 0.985609233379364
+      },
+      "15": {
+        "auroc_sequence_label": 0.8452166666666667,
+        "auroc_window_label": 0.853576388888889,
+        "clean_median": 0.023495767265558243,
+        "clean_p95": 0.99214608669281,
+        "poisoned_median": 0.9931559860706329
+      },
+      "16": {
+        "auroc_sequence_label": 0.8670666666666667,
+        "auroc_window_label": 0.873593423623745,
+        "clean_median": 0.013955525122582912,
+        "clean_p95": 0.988834235072136,
+        "poisoned_median": 0.9956735074520111
+      },
+      "17": {
+        "auroc_sequence_label": 0.89015,
+        "auroc_window_label": 0.89015,
+        "clean_median": 0.010145898908376694,
+        "clean_p95": 0.988246887922287,
+        "poisoned_median": 0.9961851537227631
+      },
+      "18": {
+        "auroc_sequence_label": 0.9013666666666668,
+        "auroc_window_label": 0.9013666666666668,
+        "clean_median": 0.008165998384356499,
+        "clean_p95": 0.9772023409605026,
+        "poisoned_median": 0.9976407885551453
+      },
+      "19": {
+        "auroc_sequence_label": 0.9089,
+        "auroc_window_label": 0.9089,
+        "clean_median": 0.006580613553524017,
+        "clean_p95": 0.9429119318723682,
+        "poisoned_median": 0.9975335896015167
+      }
+    },
+    "tgn_s4": {
+      "9": {
+        "auroc_sequence_label": 0.6202833333333334,
+        "auroc_window_label": 0.7113946791366147,
+        "clean_median": 0.07886752113699913,
+        "clean_p95": 0.971179696917534,
+        "poisoned_median": 0.24856410920619965
+      },
+      "10": {
+        "auroc_sequence_label": 0.6654333333333333,
+        "auroc_window_label": 0.739247753349445,
+        "clean_median": 0.06653949618339539,
+        "clean_p95": 0.972216945886612,
+        "poisoned_median": 0.32735030353069305
+      },
+      "11": {
+        "auroc_sequence_label": 0.7078666666666668,
+        "auroc_window_label": 0.77220676716051,
+        "clean_median": 0.052268341183662415,
+        "clean_p95": 0.977150097489357,
+        "poisoned_median": 0.4371163100004196
+      },
+      "12": {
+        "auroc_sequence_label": 0.7492999999999999,
+        "auroc_window_label": 0.7811314913706369,
+        "clean_median": 0.04609592445194721,
+        "clean_p95": 0.9749082535505295,
+        "poisoned_median": 0.6420217156410217
+      },
+      "13": {
+        "auroc_sequence_label": 0.7867333333333334,
+        "auroc_window_label": 0.819532667876588,
+        "clean_median": 0.0344834178686142,
+        "clean_p95": 0.9721984684467315,
+        "poisoned_median": 0.8628876507282257
+      },
+      "14": {
+        "auroc_sequence_label": 0.8197,
+        "auroc_window_label": 0.8229757515598413,
+        "clean_median": 0.027993081137537956,
+        "clean_p95": 0.9637999951839447,
+        "poisoned_median": 0.8424670994281769
+      },
+      "15": {
+        "auroc_sequence_label": 0.8449333333333333,
+        "auroc_window_label": 0.8491666666666666,
+        "clean_median": 0.016164705157279968,
+        "clean_p95": 0.9384528756141662,
+        "poisoned_median": 0.9454409182071686
+      },
+      "16": {
+        "auroc_sequence_label": 0.86915,
+        "auroc_window_label": 0.8765581834108215,
+        "clean_median": 0.011642190162092447,
+        "clean_p95": 0.9341797322034837,
+        "poisoned_median": 0.9807000160217285
+      },
+      "17": {
+        "auroc_sequence_label": 0.8889333333333332,
+        "auroc_window_label": 0.8889333333333332,
+        "clean_median": 0.009194666054099798,
+        "clean_p95": 0.9208921045064928,
+        "poisoned_median": 0.9887218475341797
+      },
+      "18": {
+        "auroc_sequence_label": 0.8974166666666666,
+        "auroc_window_label": 0.8974166666666666,
+        "clean_median": 0.0077376579865813255,
+        "clean_p95": 0.851972144842148,
+        "poisoned_median": 0.9933421909809113
+      },
+      "19": {
+        "auroc_sequence_label": 0.9033333333333332,
+        "auroc_window_label": 0.9033333333333332,
+        "clean_median": 0.005838184617459774,
+        "clean_p95": 0.702214735746384,
+        "poisoned_median": 0.9946540594100952
+      }
+    },
+    "tgn_s5": {
+      "9": {
+        "auroc_sequence_label": 0.6343833333333333,
+        "auroc_window_label": 0.7391086100763521,
+        "clean_median": 0.3860723078250885,
+        "clean_p95": 0.998616150021553,
+        "poisoned_median": 0.9748827815055847
+      },
+      "10": {
+        "auroc_sequence_label": 0.6797500000000001,
+        "auroc_window_label": 0.7611628616344822,
+        "clean_median": 0.13437119126319885,
+        "clean_p95": 0.9983358204364776,
+        "poisoned_median": 0.9732987284660339
+      },
+      "11": {
+        "auroc_sequence_label": 0.7221166666666667,
+        "auroc_window_label": 0.7885100601669147,
+        "clean_median": 0.15521437674760818,
+        "clean_p95": 0.9985929161310196,
+        "poisoned_median": 0.984601616859436
+      },
+      "12": {
+        "auroc_sequence_label": 0.7610666666666667,
+        "auroc_window_label": 0.7971712715734077,
+        "clean_median": 0.07663494721055031,
+        "clean_p95": 0.9984475523233414,
+        "poisoned_median": 0.991262286901474
+      },
+      "13": {
+        "auroc_sequence_label": 0.7926000000000001,
+        "auroc_window_label": 0.8305542952208106,
+        "clean_median": 0.04645068757236004,
+        "clean_p95": 0.998531487584114,
+        "poisoned_median": 0.9947923123836517
+      },
+      "14": {
+        "auroc_sequence_label": 0.8212666666666666,
+        "auroc_window_label": 0.8322107203630176,
+        "clean_median": 0.028603374026715755,
+        "clean_p95": 0.9979612290859222,
+        "poisoned_median": 0.9945878088474274
+      },
+      "15": {
+        "auroc_sequence_label": 0.8476666666666667,
+        "auroc_window_label": 0.8575,
+        "clean_median": 0.01204686937853694,
+        "clean_p95": 0.9969245105981827,
+        "poisoned_median": 0.9978565871715546
+      },
+      "16": {
+        "auroc_sequence_label": 0.8710833333333333,
+        "auroc_window_label": 0.8780742537564854,
+        "clean_median": 0.008105520624667406,
+        "clean_p95": 0.9961725115776062,
+        "poisoned_median": 0.9984491765499115
+      },
+      "17": {
+        "auroc_sequence_label": 0.8922666666666665,
+        "auroc_window_label": 0.8922666666666665,
+        "clean_median": 0.006568669807165861,
+        "clean_p95": 0.9967010229825973,
+        "poisoned_median": 0.9990677833557129
+      },
+      "18": {
+        "auroc_sequence_label": 0.90235,
+        "auroc_window_label": 0.90235,
+        "clean_median": 0.005111533449962735,
+        "clean_p95": 0.9954573005437851,
+        "poisoned_median": 0.9994421303272247
+      },
+      "19": {
+        "auroc_sequence_label": 0.9093,
+        "auroc_window_label": 0.9093,
+        "clean_median": 0.00390723452437669,
+        "clean_p95": 0.9929550856351852,
+        "poisoned_median": 0.9994427263736725
+      }
+    }
+  }
+}

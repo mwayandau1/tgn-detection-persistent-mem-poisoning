@@ -1,0 +1,94 @@
+{
+  "argv": [
+    "E:\\BackUp\\PRJTS\\msearch\\impl\\AI-poisoned\\src\\experiments\\train_variant.py",
+    "--data",
+    "data/raw/ap_burst2k_nodup",
+    "--model",
+    "static_attn",
+    "--seed",
+    "3",
+    "--output",
+    "experiments\\seeds_coherence\\static_attn_s3",
+    "--memory-slots",
+    "per_window",
+    "--cached",
+    "--window-target",
+    "presence",
+    "--arrival-window",
+    "10",
+    "--epochs-supervised",
+    "66",
+    "--score-splits",
+    "val",
+    "test",
+    "--temporal-window",
+    "20",
+    "--coherence-features"
+  ],
+  "args": {
+    "data": "data/raw/ap_burst2k_nodup",
+    "output": "experiments\\seeds_coherence\\static_attn_s3",
+    "model": "static_attn",
+    "seed": 3,
+    "config": "configs/default.yaml",
+    "epochs_supervised": 66,
+    "noise_augment_prob": 0.5,
+    "noise_sigma_max": 0.15,
+    "memory_slots": "per_window",
+    "cached": true,
+    "skip_scoring": false,
+    "window_target": "presence",
+    "arrival_window": 10,
+    "temporal_window": 20,
+    "coherence_features": true,
+    "score_splits": [
+      "val",
+      "test"
+    ]
+  },
+  "config": {
+    "simulation": {
+      "interactions_per_sequence": 200,
+      "snapshot_interval": 10,
+      "embedding_dim": 384,
+      "semantic_edge_threshold": 0.6
+    },
+    "model": {
+      "node_feature_dim": 384,
+      "node_memory_dim": 128,
+      "gat_hidden_dim": 128,
+      "gat_heads": 4,
+      "gru_hidden_dim": 128,
+      "mlp_hidden_dim": 64,
+      "dropout": 0.3,
+      "memory_slots": "per_window",
+      "readout": "attention",
+      "edge_dim": 2,
+      "coherence_dim": 10
+    },
+    "training": {
+      "temporal_window": 20,
+      "batch_size": 4,
+      "learning_rate": 0.0001,
+      "weight_decay": 1e-05,
+      "epochs_contrastive": 10,
+      "epochs_supervised": 66,
+      "early_stopping_patience": 10,
+      "gradient_clip": 1.0,
+      "focal_loss_gamma": 3.0,
+      "focal_loss_alpha": 0.85,
+      "loss_alpha": 1.0,
+      "loss_beta": 1.5,
+      "window_target": "presence"
+    },
+    "evaluation": {
+      "target_auroc": 0.85
+    }
+  },
+  "seed": 3,
+  "git_commit": "2dbcdbc",
+  "src_dirty": true,
+  "torch": "2.5.1+cu121",
+  "device": "cuda",
+  "gpu": "Quadro P2000"
+}

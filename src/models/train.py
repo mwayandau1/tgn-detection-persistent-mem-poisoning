@@ -124,6 +124,12 @@ class Trainer:
         self.noise_sigma_max = noise_sigma_max
         self.structural_features = structural_features
         self.select_by = select_by
+        # "presence": a window is positive once an injected record exists (the reported
+        # recipe). "arrival": positive windows in which no injected record arrives are left
+        # out of the window loss and the validation AUROC (see dataset.window_is_stale).
+        self.window_target = self.train_cfg.get("window_target", "presence")
+        if self.window_target == "arrival":
+            print("  Window target: arrival (stale positive windows masked from the window loss)")
         # Must be set before the model is constructed: it changes the pooled dimension
         # the temporal GRU is built to accept.
         config["model"]["scale_readout"] = bool(scale_readout)
@@ -140,6 +146,13 @@ class Trainer:
             config["model"]["node_meta_dim"] = 3 + 4
             print("Structural node features enabled (degree + edge-weight stats): "
                   "node_meta_dim=7")
+        # Arrival-coherence columns, appended by the dataset after all of the above
+        # (dataset.with_coherence_features). Set from scratch so a reused config cannot add twice.
+        coherence = config["model"].get("coherence_dim", 0)
+        if coherence:
+            config["model"]["node_meta_dim"] = 3 + (4 if structural_features else 0) + coherence
+            print(f"  Arrival-coherence node features: +{coherence} columns, "
+                  f"node_meta_dim={config['model']['node_meta_dim']}")
 
         self.model = model_cls(config).to(self.device)
         print(f"Model parameters: {sum(p.numel() for p in self.model.parameters()):,}")
@@ -335,7 +348,7 @@ class Trainer:
             graph_labels = batch["graph_labels"].to(self.device)
 
             graph_scores, node_scores = self.model(graphs)
-            l_graph = self.graph_loss_fn(graph_scores, graph_labels)
+            l_graph = self._graph_loss(graph_scores, graph_labels, batch)
 
             last_graph = graphs[-1]
             if hasattr(last_graph, "node_labels"):
@@ -359,13 +372,26 @@ class Trainer:
 
         return total_loss / max(num_batches, 1)
 
+    def _window_mask(self, batch: dict) -> torch.Tensor:
+        """1 for windows that count towards the window loss and AUROC, 0 for masked ones."""
+        if self.window_target != "arrival" or "stale" not in batch:
+            return torch.ones(len(batch["graph_labels"]), device=self.device)
+        return (~batch["stale"]).float().to(self.device)
+
+    def _graph_loss(self, graph_scores, graph_labels, batch: dict) -> torch.Tensor:
+        if self.window_target != "arrival":
+            return self.graph_loss_fn(graph_scores, graph_labels)
+        w = self._window_mask(batch)
+        bce = F.binary_cross_entropy(graph_scores, graph_labels, reduction="none")
+        return (bce * w).sum() / w.sum().clamp(min=1.0)
+
     @torch.no_grad()
     def _evaluate(self, loader: DataLoader, alpha: float, beta: float) -> tuple:
         self.model.eval()
         self.model.reset_memory()
         total_loss = 0
         num_batches = 0
-        all_graph_scores, all_graph_labels = [], []
+        all_graph_scores, all_graph_labels, all_graph_keep = [], [], []
         all_node_scores, all_node_labels = [], []
 
         for batch in loader:
@@ -373,7 +399,8 @@ class Trainer:
             graph_labels = batch["graph_labels"].to(self.device)
 
             graph_scores, node_scores = self.model(graphs)
-            l_graph = self.graph_loss_fn(graph_scores, graph_labels)
+            l_graph = self._graph_loss(graph_scores, graph_labels, batch)
+            all_graph_keep.extend(self._window_mask(batch).cpu().numpy() > 0)
 
             last_graph = graphs[-1]
             if hasattr(last_graph, "node_labels"):
@@ -396,8 +423,9 @@ class Trainer:
 
         avg_loss = total_loss / max(num_batches, 1)
 
-        all_graph_scores = np.array(all_graph_scores)
-        all_graph_labels = np.array(all_graph_labels)
+        keep = np.array(all_graph_keep, dtype=bool)
+        all_graph_scores = np.array(all_graph_scores)[keep]
+        all_graph_labels = np.array(all_graph_labels)[keep]
         graph_auroc = (roc_auc_score(all_graph_labels, all_graph_scores)
                        if len(np.unique(all_graph_labels)) > 1 else 0.0)
 

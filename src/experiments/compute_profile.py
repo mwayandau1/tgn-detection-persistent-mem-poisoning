@@ -31,6 +31,8 @@ from torch_geometric.data import Batch
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from src.data_generation.cached_dataset import CachedTrajectoryDataset  # noqa: E402
+from src.data_generation.dataset import (COHERENCE_DIM, with_arrival_edges,  # noqa: E402
+                                         with_coherence_features)
 from src.experiments.score_windows import build_model  # noqa: E402
 
 
@@ -75,19 +77,44 @@ def main():
     ap.add_argument("--output", required=True)
     args = ap.parse_args()
 
+    # The inputs the run was trained with (frozen runs predate these keys: the defaults).
+    vpath = Path(args.run_dir) / "variant.json"
+    variant = json.load(open(vpath)) if vpath.exists() else {}
+    arrival = int(variant.get("arrival_window") or 0)
+    coherence = bool(variant.get("coherence_features"))
     cfg = yaml.safe_load(open(args.config))
-    cfg["model"]["node_meta_dim"] = 7
+    cfg["model"]["node_meta_dim"] = 7 + (COHERENCE_DIM if coherence else 0)
     cfg["model"]["readout"] = "attention"
     cfg["model"]["memory_slots"] = "per_window"
-    T = cfg["training"]["temporal_window"]
+    cfg["model"]["edge_dim"] = 2 if arrival else 1
+    T = variant.get("temporal_window") or cfg["training"]["temporal_window"]
     ckpt = Path(args.run_dir) / args.checkpoint
     ds = CachedTrajectoryDataset(args.data, split="test", temporal_window=T,
-                                 structural_features=True)
+                                 structural_features=True, arrival_window=arrival,
+                                 coherence_features=coherence)
     idx = np.random.default_rng(args.seed).choice(len(ds), size=args.n_windows, replace=False)
 
     result = {"checkpoint": str(ckpt), "checkpoint_bytes": ckpt.stat().st_size,
               "checkpoint_mib": ckpt.stat().st_size / 2 ** 20, "data": args.data,
               "n_windows": args.n_windows, "torch": torch.__version__}
+    if arrival or coherence:
+        # Forward passes are timed on prepared windows, as before; the arrival edges and
+        # coherence columns are input preparation, done once per snapshot as it arrives, so
+        # they are timed separately: CPU, one snapshot at a time, 50 sampled windows.
+        raw = CachedTrajectoryDataset(args.data, split="test", temporal_window=T,
+                                      structural_features=True)
+        times = []
+        for i in idx[:50]:
+            for g in raw[int(i)]["graphs"]:
+                t0 = time.perf_counter()
+                if arrival:
+                    g = with_arrival_edges(g, cfg["simulation"]["embedding_dim"], arrival)
+                if coherence:
+                    with_coherence_features(g, cfg["simulation"]["embedding_dim"])
+                times.append((time.perf_counter() - t0) * 1000.0)
+        result.update(temporal_window=T, arrival_window=arrival, coherence_features=coherence,
+                      input_preparation_cpu_per_snapshot=stats(times))
+        print("input preparation per snapshot", json.dumps(stats(times)), flush=True)
     for dev_name in (["cuda"] if torch.cuda.is_available() else []) + ["cpu"]:
         device = torch.device(dev_name)
         model = build_model(args.model, json.loads(json.dumps(cfg))).to(device)

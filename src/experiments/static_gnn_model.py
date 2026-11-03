@@ -78,7 +78,7 @@ class StaticGNNDetector(nn.Module):
             hidden_dim=gat_hidden,
             num_heads=gat_heads,
             dropout=dropout,
-            edge_dim=1,
+            edge_dim=model_cfg.get("edge_dim", 1),
         )
 
         readout = model_cfg.get("static_readout", "attention")

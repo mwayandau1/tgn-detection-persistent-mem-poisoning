@@ -74,6 +74,22 @@ def nine_final_snapshot(data: Path, seq_ids, threshold: float, emb_dim: int, clu
     return np.array(rows, float)
 
 
+def coherence_aggregates(data: Path, seq_ids, emb_dim: int = 384):
+    """The ten arrival-coherence columns (dataset.coherence_columns) of each sequence's final
+    snapshot, aggregated to 40 sequence-level features: per column the max, the mean, the mean
+    of the top five and the max minus the median. No GNN: what the features carry alone."""
+    from src.data_generation.cached_dataset import SequenceStore
+    from src.data_generation.dataset import coherence_columns
+    store = SequenceStore(data, True, keep=4)
+    rows = []
+    for sid in seq_ids:
+        last = len(store.get(sid)["n_nodes"]) - 1
+        c = coherence_columns(store.snapshot(sid, last).x, emb_dim).numpy()
+        rows.append(np.concatenate([c.max(0), c.mean(0), np.sort(c, axis=0)[-5:].mean(0),
+                                    c.max(0) - np.median(c, 0)]))
+    return np.array(rows)
+
+
 def fit_lr(Xtr, ytr, Xte):
     sc = StandardScaler().fit(Xtr)
     clf = LogisticRegression(max_iter=5000, class_weight="balanced").fit(sc.transform(Xtr), ytr)
@@ -147,6 +163,9 @@ def main():
     ap.add_argument("--cluster-k", type=int, default=12)
     ap.add_argument("--n-boot", type=int, default=2000)
     ap.add_argument("--output", default="experiments/audit/oracle_comparison.json")
+    ap.add_argument("--coherence", action="store_true",
+                    help="Add oracles on the 40 coherence aggregates (coherence_aggregates): LR, "
+                         "GB, and LR on the 13 features plus these 40.")
     args = ap.parse_args()
 
     data = Path(args.data)
@@ -173,6 +192,16 @@ def main():
     if args.window_lr:
         scores["LR, nine features, max over windows"] = seq_max(Path(args.window_lr), "lr",
                                                                 order)
+    if args.coherence:
+        split_ids = {s: [r["sequence_id"] for r in cached[s]] for s in ("train", "val", "test")}
+        C = {s: coherence_aggregates(data, split_ids[s], args.emb_dim) for s in split_ids}
+        scores["LR, coherence (40)"] = fit_lr(C["train"], ytr, C["test"])
+        s, hp, va = fit_gb(C["train"], ytr, C["val"], yva, C["test"])
+        scores["GB, coherence (40)"] = s
+        notes["GB, coherence (40)"] = {"selected": hp, "val_auroc": va}
+        X13 = {s: to_matrix(cached[s], FINAL_FEATS + TEMPORAL_FEATS) for s in split_ids}
+        scores["LR, all (13) + coherence (40)"] = fit_lr(
+            np.hstack([X13["train"], C["train"]]), ytr, np.hstack([X13["test"], C["test"]]))
 
     det_runs = []
     for p in args.detector:

@@ -1,0 +1,17 @@
+{
+  "model": "no_aggregator",
+  "seed": 2,
+  "parameters": 581443,
+  "memory_slots": "per_window",
+  "window_target": "presence",
+  "arrival_window": 10,
+  "temporal_window": 20,
+  "coherence_features": true,
+  "epochs_supervised": 66,
+  "train_seconds": 3614.8,
+  "static_wide_hidden": null,
+  "val_window_auroc_b1": 0.9097222222222221,
+  "val_score_seconds": 62.3,
+  "test_window_auroc_b1": 0.8987,
+  "test_score_seconds": 112.7
+}

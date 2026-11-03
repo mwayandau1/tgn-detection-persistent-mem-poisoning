@@ -1,0 +1,53 @@
+{
+  "source": [
+    "E:\\BackUp\\PRJTS\\msearch\\impl\\AI-poisoned\\experiments\\seeds_coherence\\static_attn_s1\\online_scores_test_b1.npz",
+    "E:\\BackUp\\PRJTS\\msearch\\impl\\AI-poisoned\\experiments\\seeds_coherence\\static_attn_s2\\online_scores_test_b1.npz",
+    "E:\\BackUp\\PRJTS\\msearch\\impl\\AI-poisoned\\experiments\\seeds_coherence\\static_attn_s3\\online_scores_test_b1.npz",
+    "E:\\BackUp\\PRJTS\\msearch\\impl\\AI-poisoned\\experiments\\seeds_coherence\\static_attn_s4\\online_scores_test_b1.npz",
+    "E:\\BackUp\\PRJTS\\msearch\\impl\\AI-poisoned\\experiments\\seeds_coherence\\static_attn_s5\\online_scores_test_b1.npz"
+  ],
+  "per_seed": {
+    "static_attn_s1": {
+      "node_auroc": 0.9156069370983108,
+      "node_ap": 0.5727233206072778
+    },
+    "static_attn_s2": {
+      "node_auroc": 0.9139884718819155,
+      "node_ap": 0.48777296698508127
+    },
+    "static_attn_s3": {
+      "node_auroc": 0.9193750581565222,
+      "node_ap": 0.6073006654809978
+    },
+    "static_attn_s4": {
+      "node_auroc": 0.9185901704589401,
+      "node_ap": 0.5959304418799398
+    },
+    "static_attn_s5": {
+      "node_auroc": 0.9132347561951145,
+      "node_ap": 0.48576821913610385
+    }
+  },
+  "node_auroc": {
+    "mean": 0.9161590787581606,
+    "sd": 0.0027304206372265275,
+    "values": [
+      0.9156069370983108,
+      0.9139884718819155,
+      0.9193750581565222,
+      0.9185901704589401,
+      0.9132347561951145
+    ]
+  },
+  "node_ap": {
+    "mean": 0.5498991228178801,
+    "sd": 0.058964386465541384,
+    "values": [
+      0.5727233206072778,
+      0.48777296698508127,
+      0.6073006654809978,
+      0.5959304418799398,
+      0.48576821913610385
+    ]
+  }
+}
