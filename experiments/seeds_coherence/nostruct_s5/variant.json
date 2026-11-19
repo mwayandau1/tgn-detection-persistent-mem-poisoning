@@ -1,0 +1,17 @@
+{
+  "model": "nostruct",
+  "seed": 5,
+  "parameters": 676931,
+  "memory_slots": "per_window",
+  "window_target": "presence",
+  "arrival_window": 10,
+  "temporal_window": 20,
+  "coherence_features": true,
+  "epochs_supervised": 66,
+  "train_seconds": 11705.8,
+  "static_wide_hidden": null,
+  "val_window_auroc_b1": 0.917037037037037,
+  "val_score_seconds": 116.5,
+  "test_window_auroc_b1": 0.9125333333333334,
+  "test_score_seconds": 192.1
+}

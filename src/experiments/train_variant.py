@@ -28,6 +28,7 @@ Usage:
 """
 
 import argparse
+import functools
 import json
 import sys
 import time
@@ -75,11 +76,31 @@ def main():
     ap.add_argument("--memory-slots", choices=["shared", "per_window"], default="per_window")
     ap.add_argument("--cached", action="store_true")
     ap.add_argument("--skip-scoring", action="store_true")
+    ap.add_argument("--window-target", choices=["presence", "arrival"], default="presence",
+                    help="presence: the reported recipe. arrival: leave positive windows in "
+                         "which no injected record arrives out of the window loss and the "
+                         "validation AUROC (dataset.window_is_stale). Test scoring is "
+                         "unchanged.")
+    ap.add_argument("--arrival-window", type=int, default=0,
+                    help="If > 0, also join records that arrived at most this many "
+                         "interactions apart, weighted by cosine (dataset.with_arrival_edges). "
+                         "Used for training and scoring alike.")
+    ap.add_argument("--temporal-window", type=int, default=None,
+                    help="Snapshots per window (config default 10). 20 gives one window per "
+                         "sequence: memory runs over the whole sequence and the window score "
+                         "is the sequence score.")
+    ap.add_argument("--coherence-features", action="store_true",
+                    help="Append per-record arrival-coherence columns to the node features "
+                         "(dataset.with_coherence_features). Used for training and scoring.")
+    ap.add_argument("--score-splits", nargs="+", choices=["val", "test"],
+                    default=["val", "test"],
+                    help="Splits scored after training. Pilots pass 'val' only, so no test "
+                         "figure exists before a configuration is fixed.")
     args = ap.parse_args()
 
     out = Path(args.output)
     out.mkdir(parents=True, exist_ok=True)
-    if (out / "window_scores_test_b1.npz").exists():
+    if (out / "variant.json").exists():
         print(f"{out} already complete; skipping")
         return
 
@@ -87,6 +108,13 @@ def main():
     cfg["training"]["epochs_supervised"] = args.epochs_supervised
     cfg["model"]["memory_slots"] = args.memory_slots
     cfg["model"]["readout"] = "attention"
+    cfg["training"]["window_target"] = args.window_target
+    cfg["model"]["edge_dim"] = 2 if args.arrival_window > 0 else 1
+    if args.temporal_window:
+        cfg["training"]["temporal_window"] = args.temporal_window
+    if args.coherence_features:
+        from src.data_generation.dataset import COHERENCE_DIM
+        cfg["model"]["coherence_dim"] = COHERENCE_DIM
     structural = args.model != "nostruct"
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -99,6 +127,9 @@ def main():
     else:
         from src.data_generation.dataset import MemoryTrajectoryDataset
         dataset_cls = MemoryTrajectoryDataset
+    if args.arrival_window > 0 or args.coherence_features:
+        dataset_cls = functools.partial(dataset_cls, arrival_window=args.arrival_window,
+                                        coherence_features=args.coherence_features)
 
     t0 = time.time()
     trainer = Trainer(cfg, args.data, device,
@@ -112,7 +143,12 @@ def main():
     train_secs = time.time() - t0
 
     record = {"model": args.model, "seed": args.seed, "parameters": int(n_params),
-              "memory_slots": args.memory_slots, "train_seconds": round(train_secs, 1),
+              "memory_slots": args.memory_slots, "window_target": args.window_target,
+              "arrival_window": args.arrival_window,
+              "temporal_window": cfg["training"]["temporal_window"],
+              "coherence_features": args.coherence_features,
+              "epochs_supervised": args.epochs_supervised,
+              "train_seconds": round(train_secs, 1),
               "static_wide_hidden": cfg["model"].get("static_wide_hidden")}
     if not args.skip_scoring:
         scfg = json.loads(json.dumps(cfg))
@@ -121,7 +157,7 @@ def main():
         model.load_state_dict(torch.load(out / "phase2_best.pt", map_location=device,
                                          weights_only=True))
         T = cfg["training"]["temporal_window"]
-        for split in ("val", "test"):
+        for split in args.score_splits:
             ds = dataset_cls(args.data, split=split, temporal_window=T,
                              embedding_dim=cfg["simulation"]["embedding_dim"],
                              structural_features=structural)
@@ -131,10 +167,13 @@ def main():
             from sklearn.metrics import roc_auc_score
             record[f"{split}_window_auroc_b1"] = float(roc_auc_score(res["y"], res["score"]))
             record[f"{split}_score_seconds"] = round(secs, 1)
-            print(f"  {split}: window AUROC {record[f'{split}_window_auroc_b1']:.4f} "
-                  f"({secs:.0f}s)")
+            # The test figure is kept out of train.log, which is read while runs are in
+            # progress; at one window per sequence it is the test sequence AUROC.
+            print(f"  {split}: " + ("scored" if split == "test" else
+                                    f"window AUROC {record[f'{split}_window_auroc_b1']:.4f}")
+                  + f" ({secs:.0f}s)")
     json.dump(record, open(out / "variant.json", "w"), indent=2)
-    print(json.dumps(record, indent=2))
+    print(json.dumps({k: v for k, v in record.items() if not k.startswith("test_")}, indent=2))
 
 
 if __name__ == "__main__":

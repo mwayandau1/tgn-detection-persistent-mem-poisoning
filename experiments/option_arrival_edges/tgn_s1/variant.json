@@ -1,0 +1,14 @@
+{
+  "model": "tgn",
+  "seed": 1,
+  "parameters": 671555,
+  "memory_slots": "per_window",
+  "window_target": "presence",
+  "arrival_window": 10,
+  "train_seconds": 17414.3,
+  "static_wide_hidden": null,
+  "val_window_auroc_b1": 0.7567484861573236,
+  "val_score_seconds": 386.2,
+  "test_window_auroc_b1": 0.7286565479908833,
+  "test_score_seconds": 1500.6
+}

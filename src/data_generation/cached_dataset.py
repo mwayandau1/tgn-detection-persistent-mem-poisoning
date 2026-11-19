@@ -42,7 +42,8 @@ from torch_geometric.data import Data
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from src.data_generation.dataset import MemoryTrajectoryDataset  # noqa: E402
+from src.data_generation.dataset import (MemoryTrajectoryDataset, coherence_columns,  # noqa: E402
+                                         window_is_stale, with_arrival_edges)
 
 CACHE_DIRNAME = "_seqcache"
 
@@ -130,10 +131,18 @@ class CachedTrajectoryDataset(Dataset):
 
     def __init__(self, data_dir: str, split: str = "train", temporal_window: int = 10,
                  embedding_dim: int = 384, sequence_ids: Optional[List[str]] = None,
-                 structural_features: bool = False, keep: Optional[int] = 64):
+                 structural_features: bool = False, keep: Optional[int] = 64,
+                 arrival_window: int = 0, coherence_features: bool = False):
         self.data_dir = Path(data_dir)
         self.temporal_window = temporal_window
         self.structural_features = structural_features
+        self.embedding_dim = embedding_dim
+        self.arrival_window = arrival_window
+        self.coherence_features = coherence_features
+        # (sequence, snapshot) -> coherence columns. They depend on the embeddings alone, which
+        # never change, so each is computed once instead of once per window per epoch (about
+        # 50 MB for the training split).
+        self._coherence = {}
         self.metadata = {m["sequence_id"]: m
                          for m in json.load(open(self.data_dir / "metadata.json"))}
         if sequence_ids is None:
@@ -153,9 +162,17 @@ class CachedTrajectoryDataset(Dataset):
     def __getitem__(self, idx: int) -> dict:
         sid, start = self.windows[idx]
         graphs = [self.store.snapshot(sid, t) for t in range(start, start + self.temporal_window)]
+        if self.arrival_window > 0:
+            graphs = [with_arrival_edges(g, self.embedding_dim, self.arrival_window)
+                      for g in graphs]
+        if self.coherence_features:
+            for t, g in enumerate(graphs, start=start):
+                if (sid, t) not in self._coherence:
+                    self._coherence[(sid, t)] = coherence_columns(g.x, self.embedding_dim)
+                g.x = torch.cat([g.x, self._coherence[(sid, t)]], dim=1)
         return {"graphs": graphs, "graph_label": graphs[-1].y.item(),
                 "node_labels": graphs[-1].node_labels, "sequence_id": sid,
-                "window_start": start}
+                "window_start": start, "stale": window_is_stale(graphs)}
 
 
 def verify(data_dir: Path, structural: bool, n_windows: int = 40, seed: int = 0) -> int:

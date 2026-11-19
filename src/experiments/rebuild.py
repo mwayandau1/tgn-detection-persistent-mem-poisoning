@@ -8,6 +8,8 @@ from the five-seed models in --seeds-root, on the chosen main benchmark, and wri
 per table or figure to experiments/rebuild/ with a STATUS.md.
 
 Subcommands:
+  online        (with --online) online scores of the detector and static GAT seeds, for runs
+                trained on whole sequences, which have one window each (see PER_TIME)
   static-nodes  Table 4.4, static GAT record-level AUROC and AP, five seeds (from saved scores)
   record-level  record-level AUROC against all records, background records and the matched
                 benign clusters, for the detector and the static GAT
@@ -15,10 +17,14 @@ Subcommands:
   figures       Figures 4.1 to 4.3 from the median seed by sequence AUROC, with source JSON
   sweeps        Tables 4.7 to 4.10, full test partition, three draws, all five seeds (GPU)
   sweep-figures Figures 4.4 to 4.7 from the sweep table, mean +/- SD, with source JSON
-  run           all of the above in that order, resumable, keeping the laptop awake
+  run           all of the above in that order, resumable, keeping the laptop awake (online
+                and sweep-figures only with --online)
 
 Usage:
     python -m src.experiments.rebuild run --data data/raw/ap_burst2k --seeds-root experiments/seeds
+    python -m src.experiments.rebuild run --data data/raw/ap_burst2k_nodup --online \
+        --seeds-root experiments/seeds_coherence --out experiments/rebuild_coherence \
+        --extra-sweeps embedding_noise_full
 """
 
 import argparse
@@ -36,10 +42,17 @@ T = 10
 PY = sys.executable
 SWEEP_KEYS = ["graph_auroc", "graph_ap", "graph_f1", "fpr_at_tpr90", "node_auroc", "node_ap",
               "sequence_auroc"]
+# Scores with a time axis (node metrics, the window-level probe row, Figures 4.1 to 4.3).
+# Models trained on whole sequences have one window each, so --online reads the online scores
+# instead (score_windows.score_online: the same end points and labels as the frozen windows).
+# Sequence-level figures always come from window_scores.
+PER_TIME = "window_scores"
+STEPS = ["static-nodes", "record-level", "probes", "figures", "sweeps"]
+EXTRA_SWEEPS = []            # --extra-sweeps: robustness_sweep sweeps beyond the freeze's four
 
 
 def status(done, current, notes=""):
-    steps = ["static-nodes", "record-level", "probes", "figures", "sweeps"]
+    steps = STEPS
     lines = [f"# R2 rebuild: status (updated {dt.datetime.now():%a %d %b %H:%M})", ""]
     for s in steps:
         state = "done" if s in done else ("running" if s == current else "queued")
@@ -56,9 +69,36 @@ def keep_awake(on):
         ctypes.windll.kernel32.SetThreadExecutionState(0x80000000 | (0x1 if on else 0))
 
 
-def seed_runs(seeds_root: Path, model: str):
-    return sorted(seeds_root.glob(f"{model}_s*/window_scores_test_b1.npz"),
+def seed_runs(seeds_root: Path, model: str, kind: str = None):
+    return sorted(seeds_root.glob(f"{model}_s*/{kind or PER_TIME}_test_b1.npz"),
                   key=lambda p: int(p.parent.name.rsplit("_s", 1)[1]))
+
+
+def window_ends(z):
+    """Final snapshot of every scored window: stored by online scoring, else start + T - 1."""
+    return np.asarray(z["end"]) if "end" in z.files else np.asarray(z["start"]) + T - 1
+
+
+# --------------------------------------------------------------------------- online scores
+def online(data: Path, seeds_root: Path):
+    """Online scores (score_windows --online) of the detector and static GAT seeds, validation
+    and test, each with the inputs its run was trained with. Metrics are not printed."""
+    from src.experiments.score_windows import variant_flags
+    for model in ("tgn", "static_attn"):
+        for p in seed_runs(seeds_root, model, "window_scores"):
+            for split in ("val", "test"):
+                if (p.parent / f"online_scores_{split}_b1.npz").exists():
+                    continue
+                print(f"[{dt.datetime.now():%H:%M}] online scores {p.parent.name} {split}",
+                      flush=True)
+                with open(p.parent / f"online_{split}.log", "w", encoding="utf-8") as log:
+                    subprocess.run([PY, "-u", "-m", "src.experiments.score_windows",
+                                    "--data", str(data), "--run-dir", str(p.parent),
+                                    "--model", model, "--split", split, "--batch-size", "1",
+                                    "--node-scores", "--cached", "--online", "--no-metrics",
+                                    *variant_flags(p.parent)],
+                                   check=True, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
+    print("online scores written")
 
 
 def seq_auroc(npz):
@@ -168,12 +208,12 @@ def pick_sequence(te, onset_of, meta, graph_thr):
     latency over all detected test attacks; ties go to the lowest sequence id. If no candidate
     is detected, the first candidate is returned and the caller reports it as a miss.
     """
-    seq, start, score = np.asarray(te["seq"]), np.asarray(te["start"]), np.asarray(te["score"])
+    seq, end, score = np.asarray(te["seq"]), window_ends(te), np.asarray(te["score"])
     pois = sorted(set(s for s in seq if s.startswith("poisoned")))
 
     def latency(sid):
         w = np.flatnonzero(seq == sid)
-        ends = start[w] + T - 1
+        ends = end[w]
         hit = np.flatnonzero((ends >= onset_of[sid]) & (score[w] >= graph_thr))
         return int(ends[hit].min() - onset_of[sid]) if hit.size else None
 
@@ -198,13 +238,14 @@ def figures(data: Path, seeds_root: Path, seq_id: str, fpr: float = 0.05, fig_di
     import matplotlib.pyplot as plt
     plt.rcParams.update({"figure.dpi": 110, "savefig.dpi": 300, "font.size": 10})
 
-    runs = seed_runs(seeds_root, "tgn")
+    runs = seed_runs(seeds_root, "tgn", "window_scores")
     aurocs = {p.parent.name: seq_auroc(p) for p in runs}
     ranked = sorted(aurocs, key=aurocs.get)
     median_run = ranked[len(ranked) // 2]
     run_dir = seeds_root / median_run
-    te = np.load(run_dir / "window_scores_test_b1.npz", allow_pickle=True)
-    va = np.load(run_dir / "window_scores_val_b1.npz", allow_pickle=True)
+    te = np.load(run_dir / f"{PER_TIME}_test_b1.npz", allow_pickle=True)
+    va = np.load(run_dir / f"{PER_TIME}_val_b1.npz", allow_pickle=True)
+    online_scores = "end" in te.files
 
     # thresholds at the stated benign false-alarm rate, from the whole validation partition
     graph_thr = float(np.quantile(va["score"][va["y"] == 0], 1 - fpr))
@@ -219,9 +260,9 @@ def figures(data: Path, seeds_root: Path, seq_id: str, fpr: float = 0.05, fig_di
                 with np.load(data / "_seqcache" / "struct" / f"{sid}.npz") as z:
                     onset_of[sid] = int(np.flatnonzero(z["graph_label"])[0])
         seq_id, rule = pick_sequence(te, onset_of, meta, graph_thr)
-    seq, start = np.asarray(te["seq"]), np.asarray(te["start"])
+    seq, ends = np.asarray(te["seq"]), window_ends(te)
     w = np.flatnonzero(seq == seq_id)
-    w = w[np.argsort(start[w])]
+    w = w[np.argsort(ends[w])]
     graph_scores = te["score"][w].astype(float)
     graph_truth = te["y"][w].astype(int)
     last = w[-1]
@@ -246,7 +287,8 @@ def figures(data: Path, seeds_root: Path, seq_id: str, fpr: float = 0.05, fig_di
     ax.hist(pz, bins=bins, alpha=0.75, color="#c0392b", label=f"Poisoned (n={len(pz)})")
     ax.axvline(node_thr, color="gray", ls="--", lw=1.2, label=f"Threshold {node_thr:.3f} ({fpr:.0%} FPR)")
     ax.set_xlabel("Node anomaly score"); ax.set_ylabel("Count")
-    ax.set_title(f"Node-level score distribution, final window of {seq_id}")
+    ax.set_title(f"Node-level score distribution, "
+                 f"{'final snapshot' if online_scores else 'final window'} of {seq_id}")
     ax.legend(fontsize=8.5); plt.tight_layout()
     plt.savefig(figdir / "fig_4_1_node_score_distribution.png", bbox_inches="tight"); plt.close(fig)
     pred = node_scores > node_thr
@@ -285,16 +327,18 @@ def figures(data: Path, seeds_root: Path, seq_id: str, fpr: float = 0.05, fig_di
 
     # Figure 4.3
     fig, ax = plt.subplots(figsize=(11, 4.2))
-    steps = start[w] + T - 1
+    steps = ends[w]
     ax.fill_between(steps, 0, graph_truth, alpha=0.18, color="#c0392b", step="mid",
                     label="Ground truth (injection present)")
     ax.plot(steps, graph_scores, "-o", color="#1f4e79", markersize=4.5, label="Detector score")
-    ax.axhline(graph_thr, color="gray", ls="--", lw=1, label=f"Window operating point ({fpr:.0%} FPR)")
+    ax.axhline(graph_thr, color="gray", ls="--", lw=1,
+               label=f"{'Online' if online_scores else 'Window'} operating point ({fpr:.0%} FPR)")
     ax.axvline(onset, color="#c0392b", ls=":", lw=1.4, label=f"Attack onset (snapshot {onset})")
     fired = np.flatnonzero((graph_scores >= graph_thr) & (steps >= onset))
     if fired.size:
         ax.axvline(steps[fired[0]], color="#2e7d32", ls="-.", lw=1.4, label="First alert")
-    ax.set_xlabel("Snapshot index (final snapshot of each window)"); ax.set_ylabel("Poisoning score")
+    ax.set_xlabel("Snapshot index (score read after this snapshot)" if online_scores else
+                  "Snapshot index (final snapshot of each window)"); ax.set_ylabel("Poisoning score")
     ax.set_title(f"Detection score across a flood-placement sequence ({seq_id})")
     ax.set_ylim(-0.05, 1.05); ax.grid(alpha=0.25); ax.legend(loc="upper left", fontsize=8.5)
     plt.tight_layout()
@@ -317,27 +361,36 @@ def sweep_figures():
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     plt.rcParams.update({"figure.dpi": 110, "savefig.dpi": 300, "font.size": 10})
-    src = json.load(open(OUT / "tables_4_7_to_4_10_sweeps.json"))
+    src_path = OUT / "tables_4_7_to_4_10_sweeps.json"
+    src = json.load(open(src_path))
     table = src["table"]
-    lines = (("graph_auroc", "Graph AUROC (window)", "#1f4e79", "o", "-"),
-             ("graph_ap", "Graph AP (window)", "#c0392b", "s", "-"),
-             ("node_auroc", "Node AUROC", "#2e7d32", "^", "-"),
-             ("sequence_auroc", "Sequence AUROC", "#6a3d9a", "D", "--"))
+    # At one window per sequence the window metrics are the sequence metrics: drawn once.
+    whole = src["n_windows"] == src["n_sequences"]
+    lines = ((("sequence_auroc", "Sequence AUROC", "#6a3d9a", "D", "-"),
+              ("graph_ap", "Sequence AP", "#c0392b", "s", "-"),
+              ("node_auroc", "Node AUROC (final snapshot)", "#2e7d32", "^", "-")) if whole else
+             (("graph_auroc", "Graph AUROC (window)", "#1f4e79", "o", "-"),
+              ("graph_ap", "Graph AP (window)", "#c0392b", "s", "-"),
+              ("node_auroc", "Node AUROC", "#2e7d32", "^", "-"),
+              ("sequence_auroc", "Sequence AUROC", "#6a3d9a", "D", "--")))
     figdir = OUT / "figures"
     figdir.mkdir(parents=True, exist_ok=True)
     note = (f"mean +/- SD over {len(src['runs'])} seeds x {src['draws_per_condition']} draws, "
-            f"{src['n_windows']:,} test windows")
+            + (f"{src['n_sequences']:,} test sequences" if whole else
+               f"{src['n_windows']:,} test windows"))
 
     def draw(ax, name, xlabel, title):
         rows = table[name]
         xs = sorted(rows, key=float)
+        lo, hi = 0.35, 0.85
         for key, label, colour, mark, ls in lines:
             m = np.array([rows[x][key]["mean"] for x in xs])
             sd = np.array([rows[x][key]["sd"] or 0.0 for x in xs])
             ax.errorbar([float(x) for x in xs], m, yerr=sd, marker=mark, color=colour, ls=ls,
                         label=label, markersize=5, capsize=3, lw=1.4)
+            lo, hi = min(lo, float((m - sd).min()) - 0.03), max(hi, float((m + sd).max()) + 0.03)
         ax.set_xlabel(xlabel); ax.set_ylabel("Score"); ax.set_title(title, fontsize=10.5)
-        ax.set_ylim(0.35, 0.85); ax.grid(alpha=0.25); ax.legend(fontsize=8)
+        ax.set_ylim(max(lo, 0.0), min(hi, 1.02)); ax.grid(alpha=0.25); ax.legend(fontsize=8)
 
     specs = {"4_4": [("embedding_noise", "Gaussian noise standard deviation",
                       "Detection performance under embedding noise")],
@@ -351,6 +404,10 @@ def sweep_figures():
                      ("edge_loss", "Drop probability", "Random edge loss")]}
     names = {"4_4": "fig_4_4_embedding_noise", "4_5": "fig_4_5_edge_threshold",
              "4_6": "fig_4_6_metadata_and_edge_loss", "4_7": "fig_4_7_degradation_dashboard"}
+    if "embedding_noise_full" in table:
+        specs["4_4b"] = [("embedding_noise_full", "Gaussian noise standard deviation",
+                          "Embedding noise reaching everything derived from the embeddings")]
+        names["4_4b"] = "fig_4_4b_embedding_noise_full"
     for fig_id, panels in specs.items():
         if len(panels) == 1:
             fig, axes = plt.subplots(figsize=(7.5, 4.4)); axes = [axes]
@@ -362,7 +419,8 @@ def sweep_figures():
             draw(ax, name, xlabel, title)
         if fig_id == "4_5":
             axes[0].axvline(0.6, color="gray", ls=":", lw=1.2)
-            axes[0].text(0.6, 0.37, " trained value", fontsize=8, color="gray")
+            axes[0].text(0.6, axes[0].get_ylim()[0] + 0.02, " trained value", fontsize=8,
+                         color="gray")
         if fig_id == "4_6":
             fig.suptitle(f"Degraded operational logging ({note})", fontsize=10.5)
         if fig_id == "4_7":
@@ -370,7 +428,8 @@ def sweep_figures():
                          f"(ap_burst2k_nodup; {note})", fontsize=11, fontweight="bold")
         plt.tight_layout(rect=[0, 0, 1, 0.95] if fig_id in ("4_6", "4_7") else None)
         plt.savefig(figdir / f"{names[fig_id]}.png", bbox_inches="tight"); plt.close(fig)
-        json.dump({"source": "experiments/rebuild/tables_4_7_to_4_10_sweeps.json", "note": note,
+        json.dump({"source": (src_path.relative_to(ROOT).as_posix()
+                              if src_path.is_relative_to(ROOT) else str(src_path)), "note": note,
                    "panels": {n: table[n] for n, _, _ in panels}},
                   open(figdir / f"{names[fig_id]}.json", "w"), indent=1)
     print(f"Figures 4.4 to 4.7 written to {figdir} ({note})")
@@ -380,12 +439,14 @@ def sweep_figures():
 def sweeps(data: Path, seeds_root: Path, draws: int):
     sdir = OUT / "sweeps"
     sdir.mkdir(parents=True, exist_ok=True)
-    runs = seed_runs(seeds_root, "tgn")
+    from src.experiments.robustness_sweep import DEFAULT_SWEEPS
+    runs = seed_runs(seeds_root, "tgn", "window_scores")
     for i, p in enumerate(runs):
-        status(["static-nodes", "record-level", "probes", "figures"], "sweeps",
-               f"Sweeps: seed run {i + 1} of {len(runs)} ({p.parent.name}); about 3 h per run.")
+        status(STEPS[:STEPS.index("sweeps")], "sweeps",
+               f"Sweeps: seed run {i + 1} of {len(runs)} ({p.parent.name}).")
         subprocess.run([PY, "-u", "-m", "src.experiments.robustness_sweep", "--data", str(data),
                         "--run-dir", str(p.parent), "--draws", str(draws),
+                        "--sweeps", *DEFAULT_SWEEPS, *EXTRA_SWEEPS,
                         "--output", str(sdir / f"{p.parent.name}.json")], check=True, cwd=ROOT)
     per = [json.load(open(sdir / f"{p.parent.name}.json")) for p in runs]
     table = {}
@@ -406,8 +467,8 @@ def sweeps(data: Path, seeds_root: Path, draws: int):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("command", choices=["static-nodes", "record-level", "probes", "figures",
-                                        "sweeps", "sweep-figures", "run"])
+    ap.add_argument("command", choices=["online", "static-nodes", "record-level", "probes",
+                                        "figures", "sweeps", "sweep-figures", "run"])
     ap.add_argument("--data", default="data/raw/ap_burst2k")
     ap.add_argument("--seeds-root", default="experiments/seeds")
     ap.add_argument("--sequence", default="auto",
@@ -416,14 +477,26 @@ def main():
     ap.add_argument("--fig-dir", default="figures")
     ap.add_argument("--draws", type=int, default=3)
     ap.add_argument("--out", default=None, help="Output folder (default experiments/rebuild)")
+    ap.add_argument("--online", action="store_true",
+                    help="Runs trained on whole sequences: read per-time scores from the online "
+                         "scores, which `run` writes first (see PER_TIME).")
+    ap.add_argument("--extra-sweeps", nargs="*", default=[],
+                    help="robustness_sweep sweeps beyond the freeze's four, e.g. "
+                         "embedding_noise_full.")
     args = ap.parse_args()
-    global OUT
+    global OUT, PER_TIME, STEPS, EXTRA_SWEEPS
     if args.out:
-        OUT = Path(args.out)
+        OUT = ROOT / args.out
+    if args.online:
+        PER_TIME = "online_scores"
+        STEPS = ["online"] + STEPS + ["sweep-figures"]
+    EXTRA_SWEEPS = args.extra_sweeps
     sys.path.insert(0, str(ROOT))
     data, seeds_root = ROOT / args.data, ROOT / args.seeds_root
     OUT.mkdir(parents=True, exist_ok=True)
-    if args.command == "static-nodes":
+    if args.command == "online":
+        online(data, seeds_root)
+    elif args.command == "static-nodes":
         static_nodes(seeds_root)
     elif args.command == "record-level":
         record_level(data, seeds_root)
@@ -439,13 +512,16 @@ def main():
         keep_awake(True)
         try:
             done = []
-            for name, fn in (("static-nodes", lambda: static_nodes(seeds_root)),
-                             ("record-level", lambda: record_level(data, seeds_root)),
-                             ("probes", lambda: probes(data, seeds_root)),
-                             ("figures", lambda: figures(data, seeds_root, args.sequence)),
-                             ("sweeps", lambda: sweeps(data, seeds_root, args.draws))):
+            steps = {"online": lambda: online(data, seeds_root),
+                     "static-nodes": lambda: static_nodes(seeds_root),
+                     "record-level": lambda: record_level(data, seeds_root),
+                     "probes": lambda: probes(data, seeds_root),
+                     "figures": lambda: figures(data, seeds_root, args.sequence),
+                     "sweeps": lambda: sweeps(data, seeds_root, args.draws),
+                     "sweep-figures": sweep_figures}
+            for name in STEPS:
                 status(done, name)
-                fn()
+                steps[name]()
                 done.append(name)
             status(done, None, "All R2 steps finished.")
         finally:

@@ -25,7 +25,7 @@ The static GAT of Table 4.5 removes the per-node memory AND the temporal aggrega
 All three are interface-compatible with TGNDetector and train through the same Trainer.
 """
 
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import copy
 import torch
@@ -81,7 +81,7 @@ class TGNNoMemory(TGNDetector):
         del self.node_memory
         self.graph_encoder = GraphEncoder(input_dim=input_dim, hidden_dim=m["gat_hidden_dim"],
                                           num_heads=m["gat_heads"], dropout=m["dropout"],
-                                          edge_dim=1)
+                                          edge_dim=m.get("edge_dim", 1))
 
     def forward(self, graph_sequence: List[Batch]) -> Tuple[torch.Tensor, torch.Tensor]:
         pooled, node_emb = [], None
@@ -97,8 +97,15 @@ class TGNNoMemory(TGNDetector):
         raise NotImplementedError("phase one is not used for the ablations")
 
 
-def matched_static_hidden(config: dict, target: int = DETECTOR_PARAMETERS) -> int:
-    """GAT hidden width at which the static attention baseline's size is closest to target."""
+def matched_static_hidden(config: dict, target: Optional[int] = None) -> int:
+    """GAT hidden width at which the static attention baseline's size is closest to target.
+
+    The target defaults to the detector's own size under the same configuration: 670,915 for
+    the frozen detector (DETECTOR_PARAMETERS), more with arrival edges or coherence columns,
+    which widen the encoder's inputs.
+    """
+    if target is None:
+        target = sum(p.numel() for p in TGNDetector(copy.deepcopy(config)).parameters())
     best = None
     for h in range(config["model"]["gat_hidden_dim"], 512):
         c = copy.deepcopy(config)

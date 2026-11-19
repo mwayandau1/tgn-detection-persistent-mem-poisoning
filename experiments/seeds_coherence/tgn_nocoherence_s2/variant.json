@@ -1,0 +1,17 @@
+{
+  "model": "tgn",
+  "seed": 2,
+  "parameters": 671555,
+  "memory_slots": "per_window",
+  "window_target": "presence",
+  "arrival_window": 10,
+  "temporal_window": 20,
+  "coherence_features": false,
+  "epochs_supervised": 66,
+  "train_seconds": 6403.1,
+  "static_wide_hidden": null,
+  "val_window_auroc_b1": 0.6624537037037037,
+  "val_score_seconds": 90.1,
+  "test_window_auroc_b1": 0.5738166666666666,
+  "test_score_seconds": 155.6
+}

@@ -1,0 +1,30 @@
+{
+  "data": "data/raw/ap_burst2k",
+  "split": "test",
+  "n_sequences": 500,
+  "trained_on": "data/raw/ap_burst2k_nodup",
+  "inputs": [
+    "experiments/seeds_coherence/cross_duplicates/tgn_s1_on_dup.npz",
+    "experiments/seeds_coherence/cross_duplicates/tgn_s2_on_dup.npz",
+    "experiments/seeds_coherence/cross_duplicates/tgn_s3_on_dup.npz",
+    "experiments/seeds_coherence/cross_duplicates/tgn_s4_on_dup.npz",
+    "experiments/seeds_coherence/cross_duplicates/tgn_s5_on_dup.npz"
+  ],
+  "detector": {
+    "n_runs": 5,
+    "auroc_per_run": [
+      0.9507916666666666,
+      0.9473166666666667,
+      0.94685,
+      0.9465833333333332,
+      0.9489166666666667
+    ],
+    "auroc_mean": 0.9480916666666668,
+    "auroc_sd": 0.0017598334832844014,
+    "ap_mean": 0.9391509570353753,
+    "auroc_ci95": [
+      0.9285320819427085,
+      0.9646774028013398
+    ]
+  }
+}

@@ -1,0 +1,58 @@
+{
+ "run": "tgn_s5",
+ "selection_rule": "sequence named on the command line",
+ "seed_sequence_aurocs": {
+  "tgn_s1": 0.9110166666666667,
+  "tgn_s2": 0.91135,
+  "tgn_s3": 0.9089,
+  "tgn_s4": 0.9033333333333332,
+  "tgn_s5": 0.9093
+ },
+ "sequence": "poisoned_placement_0463",
+ "injected_records": 12,
+ "onset_snapshot": 16,
+ "graph_threshold": 0.9987241178750992,
+ "node_threshold": 0.4137649595737457,
+ "false_alarm_rate": 0.05,
+ "thresholds_from": "all benign validation windows / records of the same run",
+ "window_end_snapshot": [
+  9,
+  10,
+  11,
+  12,
+  13,
+  14,
+  15,
+  16,
+  17,
+  18,
+  19
+ ],
+ "graph_scores": [
+  0.9954667091369629,
+  0.9951370358467102,
+  0.9950641989707947,
+  0.9920647740364075,
+  0.9875855445861816,
+  0.9836719632148743,
+  0.9763928651809692,
+  0.9787197709083557,
+  0.9955828785896301,
+  0.9977412223815918,
+  0.9982292056083679
+ ],
+ "graph_truth": [
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  1,
+  1,
+  1,
+  1
+ ],
+ "first_alert_snapshot": null
+}

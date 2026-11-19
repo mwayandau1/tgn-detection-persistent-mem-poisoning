@@ -1,0 +1,17 @@
+{
+  "model": "no_memory",
+  "seed": 4,
+  "parameters": 411075,
+  "memory_slots": "per_window",
+  "window_target": "presence",
+  "arrival_window": 10,
+  "temporal_window": 20,
+  "coherence_features": true,
+  "epochs_supervised": 66,
+  "train_seconds": 11402.5,
+  "static_wide_hidden": null,
+  "val_window_auroc_b1": 0.9219907407407408,
+  "val_score_seconds": 98.4,
+  "test_window_auroc_b1": 0.9151666666666667,
+  "test_score_seconds": 159.3
+}

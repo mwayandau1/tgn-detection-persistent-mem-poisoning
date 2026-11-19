@@ -1,0 +1,31 @@
+{
+  "run": "tgn_s5",
+  "selection_rule": {
+    "median_attack_size": 12,
+    "median_latency_detected": 2.0,
+    "candidates": 6,
+    "candidates_detected": 4
+  },
+  "seed_sequence_aurocs": {
+    "tgn_s1": 0.9110166666666667,
+    "tgn_s2": 0.91135,
+    "tgn_s3": 0.9089,
+    "tgn_s4": 0.9033333333333332,
+    "tgn_s5": 0.9093
+  },
+  "sequence": "poisoned_placement_0047",
+  "injected_records": 12,
+  "onset_snapshot": 13,
+  "graph_threshold": 0.9987241178750992,
+  "node_threshold": 0.4137649595737457,
+  "false_alarm_rate": 0.05,
+  "thresholds_from": "all benign validation windows / records of the same run",
+  "files": [
+    "fig_4_1_node_score_distribution.json",
+    "fig_4_1_node_score_distribution.png",
+    "fig_4_2_node_graph_overlay.json",
+    "fig_4_2_node_graph_overlay.png",
+    "fig_4_3_single_sequence_detection_score.json",
+    "fig_4_3_single_sequence_detection_score.png"
+  ]
+}
