@@ -19,3 +19,8 @@ handover_v3.zip
 experiments/**/*.npz
 experiments/**/*.log
 !experiments/rebuild/freeze_extras.log
+
+# Outputs of the notebooks: 03_reproduce_freeze2 (copies of frozen results, logs, a regenerated
+# corpus) and 02_detector (models trained from the notebook)
+experiments/notebook_check/
+experiments/notebook_runs/
