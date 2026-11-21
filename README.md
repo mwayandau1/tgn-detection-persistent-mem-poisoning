@@ -73,6 +73,7 @@ experiments/
   duplicates/   R1 results
   rebuild/      Tables 4.4, 4.6 to 4.11, Figures 4.1 to 4.7, each with source JSON
   run_burst2k_base/  the single checkpoint the pre-audit thesis reported (R1 compares against it)
+notebooks/                    the method as notebooks: benchmark, detector (retrainable), freeze check
 manuscript/VENUES.md          candidate venues and deadlines for the paper
 archive/llm_benchmark/        the withdrawn LLM-generated benchmark (evidence for the content leak)
 data/  (not in Git)           knowledge base, generated benchmarks and caches
